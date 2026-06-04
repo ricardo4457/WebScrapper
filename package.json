@@ -1,0 +1,27 @@
+{
+  "name": "scrapper",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ricardo4457/WebScrapper.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/ricardo4457/WebScrapper/issues"
+  },
+  "homepage": "https://github.com/ricardo4457/WebScrapper#readme",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "mysql2": "^3.22.4",
+    "p-limit": "^7.3.0",
+    "playwright": "^1.60.0"
+  }
+}
