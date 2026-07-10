@@ -2,7 +2,7 @@ const express = require("express");
 
 const router = express.Router();
 
-const scrapeQueue = require("../queues/ScrapeQueue");
+const scrapeQueue = require("/queue/ScrapeQueue");
 
 
 router.post("/scrape/run", async (req, res) => {
