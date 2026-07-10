@@ -1,16 +1,61 @@
-const { Worker } = require('bullmq');
-const axios = require('axios');
-const { runStrategy } = require('./strategies'); // o teu código atual
+const { Worker } = require("bullmq");
 
-new Worker('book-scraper', async job => {
-  const { ano, ciclo, distrito, concelho, escola } = job.data;
-  const resultado = await runStrategy({ ano, ciclo, distrito, concelho, escola }, (pct) => job.updateProgress(pct));
+const { runStrategy } = require("./strategies");
 
-  await axios.post(process.env.LARAVEL_CALLBACK_URL, {
-    run_id: job.id,
-    escola,
-    livros: resultado,
-  }, { headers: { 'X-API-KEY': process.env.SHARED_SECRET } });
+const ScrapeJob = require("./jobs/ScrapeJob");
 
-  return { status: 'done' };
-}, { connection: { host: 'localhost', port: 6379 } });
+const callbackService = require("./services/CallbackService");
+
+const redis = require("./config/redis");
+
+
+new Worker(
+  "book-scraper",
+
+  async (job) => {
+
+    const scrapeJob = new ScrapeJob(
+      job.data,
+      job
+    );
+
+
+    try {
+
+      const books = await runStrategy(
+        scrapeJob.getStrategyData(),
+        (progress) =>
+          scrapeJob.updateProgress(progress)
+      );
+
+
+      await callbackService.send(
+        scrapeJob.callbackUrl,
+        scrapeJob.getCompletedPayload(books)
+      );
+
+
+      return {
+        status: "completed",
+      };
+
+
+    } catch (error) {
+
+
+      await callbackService.send(
+        scrapeJob.callbackUrl,
+        scrapeJob.getFailedPayload(error)
+      );
+
+
+      throw error;
+    }
+
+  },
+
+
+  {
+    connection: redis,
+  }
+);
