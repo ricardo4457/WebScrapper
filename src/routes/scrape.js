@@ -4,81 +4,59 @@ const router = express.Router();
 
 const scrapeQueue = require("/queue/ScrapeQueue");
 
-
 router.post("/scrape/run", async (req, res) => {
+  const {
+    strategy,
+    year,
+    teaching_cycle,
+    district,
+    city,
+    school,
+    callback_url,
+    run_token,
+  } = req.body;
 
-   const {
-      strategy,
-      year,
-      teaching_cycle,
-      district,
-      city,
-      school,
-      callback_url,
-      run_token,
-   } = req.body;
+  const job = await scrapeQueue.add({
+    strategy,
 
+    year,
 
-   const job = await scrapeQueue.add({
+    teaching_cycle,
 
-      strategy,
+    district,
 
-      year,
+    city,
 
-      teaching_cycle,
+    school,
 
-      district,
+    callback_url,
 
-      city,
+    run_token,
+  });
 
-      school,
+  return res.status(202).json({
+    job_token: job.id.toString(),
 
-      callback_url,
-
-      run_token,
-
-   });
-
-
-   return res.status(202).json({
-
-      job_token: job.id.toString(),
-
-      status: "queued",
-
-   });
-
+    status: "queued",
+  });
 });
-
 
 router.get("/scrape/run/:id", async (req, res) => {
+  const job = await scrapeQueue.find(req.params.id);
 
+  if (!job) {
+    return res.status(404).json({
+      error: "Job not found",
+    });
+  }
 
-   const job = await scrapeQueue.find(
-      req.params.id
-   );
+  return res.json({
+    id: job.id,
 
+    state: await job.getState(),
 
-   if (!job) {
-
-      return res.status(404).json({
-         error: "Job not found",
-      });
-
-   }
-
-
-   return res.json({
-
-      id: job.id,
-
-      state: await job.getState(),
-
-      progress: job.progress,
-
-   });
-
+    progress: job.progress,
+  });
 });
-
 
 module.exports = router;
