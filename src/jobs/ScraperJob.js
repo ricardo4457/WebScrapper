@@ -1,84 +1,55 @@
-'use strict';
+const ScrapeRunRepository = require("../repository/ScrapeRunRepository");
+const StrategyRunner = require("../runner/StrategyRunner");
 
-/**
- * Wraps one BullMQ job's raw data with the helpers the Worker needs:
- * building the strategy input, reporting progress, and building the
- * callback payloads sent to the Laravel API.
- */
-class ScrapeJob {
-    constructor(data, bullJob) {
-        this.bullJob = bullJob;
+module.exports = {
+  key: "ScraperJob",
 
-        this.strategy = data.strategy;
-        this.year = data.year;
-        this.teachingCycle = data.teaching_cycle;
-        this.district = data.district;
-        this.city = data.city;
-        this.school = data.school;
-        this.schools = data.schools; // array [{ city, school }] - só usado por full_district
+  async handle({ data }) {
+    // Safely extract the runId
+    const runId = data ? data.runId : null;
 
-        this.callbackUrl = data.callback_url;
-        this.runToken = data.run_token;
-    }
+    try {
+      // Defensive validation of the payload
+      if (!runId) {
+        throw new Error(
+          'Critical Failure: "runId" was not provided in the Job payload.',
+        );
+      }
 
-    /** Builds the input object expected by StrategyRunner()/createStrategy(). */
-    getStrategyData() {
-        if (this.strategy === 'full_district') {
-            return {
-                strategy: this.strategy,
-                year: this.year,
-                teaching_cycle: this.teachingCycle,
-                district: this.district,
-                schools: this.schools,
-            };
+      console.log(`[ScraperJob] Starting processing for Run ID: ${runId}`);
+
+      // 1. Update the global execution status to 'processing'
+      await ScrapeRunRepository.updateStatus(runId, "processing");
+
+      // 2. Forward the data to the Runner, which selects the correct strategy
+      const result = await StrategyRunner.run(data);
+
+      // 3. On success, update status to 'completed' and store the output
+      await ScrapeRunRepository.updateStatus(
+        runId,
+        "completed",
+        JSON.stringify(result),
+      );
+
+      console.log(`[ScraperJob] Run ID ${runId} finalized successfully.`);
+      return result;
+    } catch (e) {
+      console.error(`[ScraperJob] Fatal error detected: ${e.message}`);
+
+      // Safety guard: Only attempt to update the DB if runId exists and is valid
+      if (runId) {
+        try {
+          await ScrapeRunRepository.updateStatus(runId, "failed", e.message);
+        } catch (dbError) {
+          console.error(
+            `[ScraperJob] Unable to update failure status in DB for Run ${runId}:`,
+            dbError,
+          );
         }
+      }
 
-        return {
-            strategy: this.strategy,
-            year: this.year,
-            teaching_cycle: this.teachingCycle,
-            district: this.district,
-            city: this.city,
-            school: this.school,
-        };
+      // Re-throw the error so Bull Queue registers it as failed and triggers automatic retries
+      throw e;
     }
-
-    /**
-     * @param {Array<{ task: object, books: object[] }>} results Output of StrategyRunner().
-     */
-    getCompletedPayload(results) {
-        return {
-            run_token: this.runToken,
-            job_token: this.bullJob.id.toString(),
-            status: "completed",
-
-            books: results.map(({ task, books }) => ({
-                school: {
-                    name: task.school,
-                    district: task.district,
-                    city: task.city,
-                },
-                year: task.year,
-                teaching_cycle: task.teaching_cycle,
-                items: books,
-            })),
-        };
-    }
-
-
-    getFailedPayload(error) {
-        return {
-            run_token: this.runToken,
-            job_token: this.bullJob.id.toString(),
-            status: "failed",
-            error: error.message,
-        };
-    }
-
-
-    updateProgress(progress) {
-        return this.bullJob.updateProgress(progress);
-    }
-}
-
-module.exports = ScrapeJob;
+  },
+};
