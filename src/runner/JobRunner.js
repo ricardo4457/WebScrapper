@@ -1,6 +1,6 @@
 const { Worker } = require("bullmq");
 
-const { runStrategy } = require("./StrategyRunner");
+const { StrategyRunner } = require("./StrategyRunner");
 
 const ScrapeJob = require("../jobs/ScraperJob");
 
@@ -22,7 +22,7 @@ new Worker(
 
     try {
 
-      const results = await runStrategy(
+      const results = await StrategyRunner(
         scrapeJob.getStrategyData(),
         (progress) =>
           scrapeJob.updateProgress(progress)

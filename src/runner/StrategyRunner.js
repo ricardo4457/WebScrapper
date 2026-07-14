@@ -21,7 +21,7 @@ const scraper = require('../scrapper/scraper');
  * @param {(progress: { done: number, total: number, task?: object }) => void} [onProgress]
  * @returns {Promise<Array<{ task: import('../strategies/ScrapeTask').ScrapeTask, books: object[] }>>}
  */
-async function runStrategy(input, onProgress = () => {}) {
+async function StrategyRunner(input, onProgress = () => {}) {
   const { strategy: strategyName, ...params } = input;
   const strategy = createStrategy(strategyName, params);
   const tasks = strategy.getTasks();
@@ -68,4 +68,4 @@ async function runStrategy(input, onProgress = () => {}) {
   }
 }
 
-module.exports = { runStrategy };
+module.exports = { StrategyRunner };
