@@ -21,7 +21,7 @@ class ScrapeJob {
         this.runToken = data.run_token;
     }
 
-    /** Builds the input object expected by runStrategy()/createStrategy(). */
+    /** Builds the input object expected by StrategyRunner()/createStrategy(). */
     getStrategyData() {
         if (this.strategy === 'full_district') {
             return {
@@ -44,7 +44,7 @@ class ScrapeJob {
     }
 
     /**
-     * @param {Array<{ task: object, books: object[] }>} results Output of runStrategy().
+     * @param {Array<{ task: object, books: object[] }>} results Output of StrategyRunner().
      */
     getCompletedPayload(results) {
         return {
