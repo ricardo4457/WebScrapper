@@ -1,0 +1,52 @@
+services:
+  # Base de dados Redis (Fila)
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - scraper-network
+
+  # Painel de Controlo do Redis
+  redis-insight:
+    image: redis/redisinsight:latest
+    container_name: redis-insight
+    ports:
+      - "5540:5540"
+    networks:
+      - scraper-network
+    depends_on:
+      - redis
+
+  # A tua API Express
+  scraper-api:
+    build: .
+    container_name: scraper-api
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    networks:
+      - scraper-network
+    depends_on:
+      - redis
+
+  # O teu Worker dedicado (JobRunner)
+  scraper-worker:
+    build: .
+    container_name: scraper-worker
+    command: ["node", "src/runner/JobRunner.js"]
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    networks:
+      - scraper-network
+    depends_on:
+      - redis
+
+networks:
+  scraper-network:
+    driver: bridge
