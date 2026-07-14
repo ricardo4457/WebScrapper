@@ -8,6 +8,14 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+const { chromium } = require('playwright');
+const SEL = require('./selectors');
+
+/** Simple delay helper used throughout scraper.js between UI interactions. */
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 /**
  * Manages a single Playwright browser + context for one scraping task.
  * One BrowserManager instance = one task (SingleSchoolStrategy task,
@@ -26,15 +34,15 @@ class BrowserManager {
   async launch(options = {}) {
     this.browser = await chromium.launch({
       headless: options.headless !== false,
-      args: ["--disable-blink-features=AutomationControlled"],
+      args: ['--disable-blink-features=AutomationControlled'],
     });
 
     this.context = await this.browser.newContext({
       viewport: { width: 1366, height: 900 },
-      locale: "pt-PT",
+      locale: 'pt-PT',
       userAgent:
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+        '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     });
 
     return this.browser;
@@ -46,14 +54,11 @@ class BrowserManager {
    */
   async openBasePage() {
     if (!this.context) {
-      throw new Error("BrowserManager.openBasePage: chama launch() primeiro.");
+      throw new Error('BrowserManager.openBasePage: chama launch() primeiro.');
     }
 
     const page = await this.context.newPage();
-    await page.goto(SEL.BASE_URL, {
-      waitUntil: "domcontentloaded",
-      timeout: 30000,
-    });
+    await page.goto(SEL.BASE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
     try {
       await page.waitForSelector(SEL.ACCEPT_COOKIES, { timeout: 5000 });
