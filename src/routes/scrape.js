@@ -2,7 +2,7 @@ const express = require("express");
 
 const router = express.Router();
 
-const scrapeQueue = require("/queue/ScrapeQueue");
+const scrapeQueue = require("../queue/ScrapeQueue");
 
 router.post("/scrape/run", async (req, res) => {
   const {
@@ -12,6 +12,7 @@ router.post("/scrape/run", async (req, res) => {
     district,
     city,
     school,
+    schools, 
     callback_url,
     run_token,
   } = req.body;
@@ -28,6 +29,8 @@ router.post("/scrape/run", async (req, res) => {
     city,
 
     school,
+
+    schools,
 
     callback_url,
 

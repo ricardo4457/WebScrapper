@@ -1,12 +1,12 @@
 const { Worker } = require("bullmq");
 
-const { runStrategy } = require("./strategies");
+const { runStrategy } = require("./runStrategy");
 
-const ScrapeJob = require("./jobs/ScrapeJob");
+const ScrapeJob = require("../jobs/ScraperJob");
 
-const callbackService = require("./services/CallbackService");
+const callbackService = require("../services/ScrapeCallback");
 
-const redis = require("./config/redis");
+const redis = require("../config/redis");
 
 
 new Worker(
@@ -22,16 +22,16 @@ new Worker(
 
     try {
 
-      const books = await runStrategy(
+      const results = await runStrategy(
         scrapeJob.getStrategyData(),
         (progress) =>
           scrapeJob.updateProgress(progress)
       );
 
 
-      await callbackService.send(
+      await callbackService.completed(
         scrapeJob.callbackUrl,
-        scrapeJob.getCompletedPayload(books)
+        scrapeJob.getCompletedPayload(results)
       );
 
 
@@ -43,7 +43,7 @@ new Worker(
     } catch (error) {
 
 
-      await callbackService.send(
+      await callbackService.failed(
         scrapeJob.callbackUrl,
         scrapeJob.getFailedPayload(error)
       );
