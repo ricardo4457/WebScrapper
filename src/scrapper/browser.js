@@ -1,68 +1,82 @@
-'use strict';
+"use strict";
+
+const { chromium } = require("playwright");
+const SEL = require("./selectors");
+
+/** Simple delay helper used throughout scraper.js between UI interactions. */
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /**
- * Centralized selectors for wook.pt/comprar-manuais-escolares.
- * Extracted and validated from index_combo.js, script_json.js and index_tooltips.js.
- * Keeping these in one file avoids "magic strings" scattered across steps/strategies.
- *
- * Note: the selector VALUES are literal DOM hooks from the target site (class names,
- * ids) and cannot be translated - only the JS identifiers referencing them are English.
+ * Manages a single Playwright browser + context for one scraping task.
+ * One BrowserManager instance = one task (SingleSchoolStrategy task,
+ * or one school within a FullDistrictStrategy run).
  */
-module.exports = {
-  BASE_URL: 'https://www.wook.pt/comprar-manuais-escolares',
+class BrowserManager {
+  constructor() {
+    this.browser = null;
+    this.context = null;
+  }
 
-  // Cookie banner
-  ACCEPT_COOKIES: 'button:has-text("ACEITAR")',
+  /**
+   * Launches Chromium. headless defaults to true; pass { headless: false }
+   * locally to watch the scraper run.
+   */
+  async launch(options = {}) {
+    this.browser = await chromium.launch({
+      headless: options.headless !== false,
+      args: ["--disable-blink-features=AutomationControlled"],
+    });
 
-  // Step 1: Year / Cycle
-  YEAR_BUTTON: '.anoEscolar',            // used in index_combo.js (click by text)
-  YEAR_BUTTON_DATA: 'button.ano-li',     // used in script_json.js (has data-value, more robust)
-  CYCLE_BUTTON: '.cicloEscolar',
+    this.context = await this.browser.newContext({
+      viewport: { width: 1366, height: 900 },
+      locale: "pt-PT",
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    });
 
-  // Step 1b: Teaching type / cycle (not always visible, depends on the year)
-  TEACHING_TYPE_WRAPPER: '.tiposEnsino-wrapper',
-  TEACHING_TYPE_COMBO: '#combo-tipoEnsino',
-  TEACHING_TYPE_LISTBOX: '#listbox-tipoEnsino',
+    return this.browser;
+  }
 
-  // Step 2: District / City (via combos - script_json.js/index_combo.js)
-  DISTRICT_COMBO: '#combo-distrito',
-  DISTRICT_LISTBOX: '#listbox-distrito',
-  CITY_COMBO: '#combo-concelho',
-  CITY_LISTBOX: '#listbox-concelho',
+  /**
+   * Opens the school-books page and dismisses the cookie banner if present.
+   * Must be called after launch(). Returns the ready-to-use Page.
+   */
+  async openBasePage() {
+    if (!this.context) {
+      throw new Error("BrowserManager.openBasePage: chama launch() primeiro.");
+    }
 
-  // Step 2 (alternative): District / City via SVG map with tooltip (index_tooltips.js)
-  CONTENT_MAP: '#content-map',
-  CONTENT_MAP_SHAPES: 'svg path, svg circle',
-  MAP_TOOLTIP: '#mapTooltip-information',
+    const page = await this.context.newPage();
+    await page.goto(SEL.BASE_URL, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
 
-  // Step 3: School
-  SCHOOL_COMBO: '#combo-escola',
-  SCHOOL_LISTBOX: '#listbox-escola',
-  SCHOOL_OPTION: 'li[role="option"]',
+    try {
+      await page.waitForSelector(SEL.ACCEPT_COOKIES, { timeout: 5000 });
+      await page.click(SEL.ACCEPT_COOKIES);
+      await sleep(300);
+    } catch {
+      // banner de cookies não apareceu (ex: já aceite antes) - continua normalmente
+    }
 
-  // Step 4: Subjects
-  SUBJECTS_CONTAINER: '.disciplinas.checkbox',
-  SUBJECTS_LABEL: 'label',
+    return page;
+  }
 
-  // Step 5: Continue
-  CONTINUE_BUTTON: 'button.btnLivrosEscolares >> span:text("continuar")',
+  /** Closes context + browser. Safe to call even if launch() failed partway. */
+  async close() {
+    if (this.context) {
+      await this.context.close().catch(() => {});
+      this.context = null;
+    }
+    if (this.browser) {
+      await this.browser.close().catch(() => {});
+      this.browser = null;
+    }
+  }
+}
 
-  // Step 6: Adopted books
-  ADOPTED_BOOKS_CONTAINER: '.col-xs-12.livrosAdotados',
-  BOOK_BLOCK: '.col-xs-12.escolares_bloco_flash_principal',
-  BOOK_DISCIPLINE: '.col-xs-12.escolares_disciplina_flash_hidden',
-  BOOK_TYPE: '.categoriaWeb .info-text',
-  BOOK_TITLE: '.tituloAdocao',
-  BOOK_AUTHORS: '.autores',
-  BOOK_PUBLISHER: '.editores',
-  BOOK_COVER: 'img.cover',
-  BOOK_PRICE: '.escolares_preco',
-  BOOK_QUANTITY_INPUT: '.escolares_quantidades_input',
-  NO_BOOK_TEXT: '.info-no-adotions .semAdocoes',
-  NO_BOOK_SHOW_ALL: '.semAdocoesVerTodos',
-
-  // Generic: option inside any listbox (used by getOptions/pickOption)
-  optionInList(listSelector) {
-    return `${listSelector} li[role="option"]:not([hidden])`;
-  },
-};
+module.exports = { BrowserManager, sleep };
