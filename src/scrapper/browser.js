@@ -1,4 +1,12 @@
-'use strict';
+"use strict";
+
+const { chromium } = require("playwright");
+const SEL = require("./selectors");
+
+/** Simple delay helper used throughout scraper.js between UI interactions. */
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 const { chromium } = require('playwright');
 const SEL = require('./selectors');
