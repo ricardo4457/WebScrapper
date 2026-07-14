@@ -1,3 +1,5 @@
+"use strict";
+
 const ScrapeTask = require("../ScrapeTask");
 const SchoolRepository = require("../../repository/SchoolRepository");
 const ScrapeQueue = require("../../queue/ScrapeQueue");
@@ -5,14 +7,14 @@ const ScrapeQueue = require("../../queue/ScrapeQueue");
 class FullDistrictStrategy extends ScrapeTask {
   async execute(page, payload) {
     const { districtId, runId } = payload;
-    console.log(
+    //console.log(
       `[FullDistrictStrategy] Starting scraping for district: ${districtId}`,
     );
 
     try {
       // 1. Discover schools belonging to this district
       const schools = await this.discoverSchools(page, districtId);
-      console.log(
+      //console.log(
         `[FullDistrictStrategy] Found ${schools.length} schools for district ${districtId}`,
       );
 

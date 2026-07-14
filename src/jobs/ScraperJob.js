@@ -16,7 +16,7 @@ module.exports = {
         );
       }
 
-      console.log(`[ScraperJob] Starting processing for Run ID: ${runId}`);
+      //console.log(`[ScraperJob] Starting processing for Run ID: ${runId}`);
 
       // 1. Update the global execution status to 'processing'
       await ScrapeRunRepository.updateStatus(runId, "processing");
@@ -31,7 +31,7 @@ module.exports = {
         JSON.stringify(result),
       );
 
-      console.log(`[ScraperJob] Run ID ${runId} finalized successfully.`);
+      //console.log(`[ScraperJob] Run ID ${runId} finalized successfully.`);
       return result;
     } catch (e) {
       console.error(`[ScraperJob] Fatal error detected: ${e.message}`);

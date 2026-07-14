@@ -1,8 +1,7 @@
-'use strict';
+"use strict";
 
-const AllYearsStrategy = require('./implementations/AllYearsStrategy');
-const FullDistrictStrategy = require('./implementations/FullDistrictStrategy');
-const SingleSchoolStrategy = require('./implementations/SingleSchoolStrategy');
+const FullDistrictStrategy = require("./implementations/FullDistrictStrategy");
+const SingleSchoolStrategy = require("./implementations/SingleSchoolStrategy");
 
 /**
  * Maps the strategy name received by the API to the class that creates its plan.
@@ -13,7 +12,6 @@ const SingleSchoolStrategy = require('./implementations/SingleSchoolStrategy');
 const STRATEGIES = Object.freeze({
   single_school: SingleSchoolStrategy,
   full_district: FullDistrictStrategy,
-  all_years: AllYearsStrategy,
 });
 
 /**
@@ -40,7 +38,4 @@ function createStrategy(name, params = {}) {
   return new Strategy(params);
 }
 
-module.exports = {
-  STRATEGIES,
-  createStrategy,
-};
+module.exports = ScrapeTask;

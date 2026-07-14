@@ -28,7 +28,7 @@ class JobRunner {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       );
 
-      console.log(`[JobRunner] Running strategy [${strategyName}]...`);
+      //console.log(`[JobRunner] Running strategy [${strategyName}]...`);
 
       // 4. Execute the strategy-specific logic (SingleSchool or FullDistrict)
       const result = await strategy.execute(page, taskData);
@@ -42,7 +42,7 @@ class JobRunner {
     } finally {
       // THE FINALLY BLOCK IS SACRED: Always closes the page to prevent RAM/Chromium process leaks
       if (page) {
-        console.log("[JobRunner] Closing the Puppeteer page safely...");
+        //console.log("[JobRunner] Closing the Puppeteer page safely...");
         await page
           .close()
           .catch((err) =>
