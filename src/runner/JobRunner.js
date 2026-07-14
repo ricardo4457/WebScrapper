@@ -1,6 +1,6 @@
 const { Worker } = require("bullmq");
 
-const { runStrategy } = require("./runStrategy");
+const { runStrategy } = require("./StrategyRunner");
 
 const ScrapeJob = require("../jobs/ScraperJob");
 
