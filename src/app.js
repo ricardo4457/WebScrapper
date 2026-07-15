@@ -8,7 +8,7 @@ const app = express();
 app.use(express.json());
 
 // Register API routes
-app.use("/api", scrapeRouter);
+app.use("/scrape", scrapeRouter);
 
 // Simple healthcheck endpoint
 app.get("/health", (req, res) => {

@@ -34,14 +34,18 @@ services:
     depends_on:
       - redis
 
-  # O teu Worker dedicado (JobRunner)
+# O teu Worker dedicado (StrategyRunner)
   scraper-worker:
     build: .
     container_name: scraper-worker
-    command: ["node", "src/runner/JobRunner.js"]
+    # 🌟 CHANGED: Pointing to the correct StrategyRunner.js
+    command: ["node", "src/runner/StrategyRunner.js"]
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules # Prevents local node_modules from overwriting container modules
     networks:
       - scraper-network
     depends_on:

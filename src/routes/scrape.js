@@ -4,7 +4,7 @@ const express = require("express");
 const router = express.Router();
 const scrapeQueue = require("../queue/ScrapeQueue");
 
-router.post("/scrape/run", async (req, res) => {
+router.post("/", async (req, res) => {
   try {
     const {
       strategy,
@@ -18,8 +18,10 @@ router.post("/scrape/run", async (req, res) => {
       run_token, // Received dynamically from Laravel
     } = req.body;
 
-    // Add job to the queue with the dynamic run_token included in payload
+    // Add job to the queue. 
+    // Note: BullMQ `.add` takes ('jobName', dataPayload, options)
     const job = await scrapeQueue.add(
+      "scrape-job", 
       {
         strategy,
         year,
@@ -37,10 +39,13 @@ router.post("/scrape/run", async (req, res) => {
       }
     );
 
+    // 🌟 RETURN PLURAL ARRAY & TOTAL JOBS TO SATISFY LARAVEL
     return res.status(202).json({
-      job_token: job.id.toString(),
+      job_tokens: [job.id.toString()], 
+      jobs_total: 1,                  
       status: "queued",
     });
+
   } catch (error) {
     console.error(`[Router] Error queuing job: ${error.message}`);
     return res.status(500).json({
@@ -49,7 +54,7 @@ router.post("/scrape/run", async (req, res) => {
   }
 });
 
-router.get("/scrape/run/:id", async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
     const job = await scrapeQueue.find(req.params.id);
 
