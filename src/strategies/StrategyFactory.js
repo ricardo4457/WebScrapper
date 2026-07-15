@@ -5,9 +5,6 @@ const SingleSchoolStrategy = require("./implementations/SingleSchoolStrategy");
 
 /**
  * Maps the strategy name received by the API to the class that creates its plan.
- *
- * Keeping this decision here prevents routes and the Worker from having
- * repeated if/else blocks to select a strategy.
  */
 const STRATEGIES = Object.freeze({
   single_school: SingleSchoolStrategy,
@@ -17,16 +14,9 @@ const STRATEGIES = Object.freeze({
 /**
  * Creates the strategy requested by the API.
  *
- * Example:
- * const strategy = createStrategy('single_school', payload);
- * const tasks = strategy.getTasks();
- *
- * The constructor validates the input and creates the task plan. getTasks()
- * returns a copy of that validated plan.
- *
- * @param {string} name Strategy name: single_school, full_district, or all_years.
- * @param {object} params Data required by the selected strategy.
- * @returns {SingleSchoolStrategy|FullDistrictStrategy|AllYearsStrategy}
+ * @param {string} name - Strategy name (e.g., 'single_school' or 'full_district').
+ * @param {object} params - Data required by the selected strategy.
+ * @returns {SingleSchoolStrategy|FullDistrictStrategy}
  */
 function createStrategy(name, params = {}) {
   const Strategy = STRATEGIES[name];
@@ -38,4 +28,6 @@ function createStrategy(name, params = {}) {
   return new Strategy(params);
 }
 
-module.exports = ScrapeTask;
+module.exports = {
+  createStrategy,
+};

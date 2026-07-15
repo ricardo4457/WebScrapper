@@ -1,55 +1,52 @@
-const ScrapeRunRepository = require("../repository/ScrapeRunRepository");
+'use strict';
+
 const StrategyRunner = require("../runner/StrategyRunner");
+const scrapeCallback = require("../services/ScrapeCallback");
 
-module.exports = {
-  key: "ScraperJob",
+class ScraperJob {
+  /**
+   * Main entry point for the BullMQ Worker.
+   * 
+   * @param {import('bullmq').Job} job 
+   */
+  async perform(job) {
+    const { callback_url, run_token, ...strategyData } = job.data;
 
-  async handle({ data }) {
-    // Safely extract the runId
-    const runId = data ? data.runId : null;
+    console.log(`[Worker] Processing job ${job.id} for Strategy: ${strategyData.strategy}`);
 
     try {
-      // Defensive validation of the payload
-      if (!runId) {
-        throw new Error(
-          'Critical Failure: "runId" was not provided in the Job payload.',
-        );
-      }
+      // 1. Run the strategy
+      const results = await StrategyRunner.run(strategyData);
 
-      //console.log(`[ScraperJob] Starting processing for Run ID: ${runId}`);
-
-      // 1. Update the global execution status to 'processing'
-      await ScrapeRunRepository.updateStatus(runId, "processing");
-
-      // 2. Forward the data to the Runner, which selects the correct strategy
-      const result = await StrategyRunner.run(data);
-
-      // 3. On success, update status to 'completed' and store the output
-      await ScrapeRunRepository.updateStatus(
-        runId,
-        "completed",
-        JSON.stringify(result),
+      // 2. Dispatch success callback dynamically
+      await scrapeCallback.send(
+        callback_url,
+        {
+          status: "completed",
+          job_id: job.id,
+          results: results,
+        },
+        run_token
       );
 
-      //console.log(`[ScraperJob] Run ID ${runId} finalized successfully.`);
-      return result;
-    } catch (e) {
-      console.error(`[ScraperJob] Fatal error detected: ${e.message}`);
+      return results;
+    } catch (error) {
+      console.error(`[Worker] Job ${job.id} failed: ${error.message}`);
 
-      // Safety guard: Only attempt to update the DB if runId exists and is valid
-      if (runId) {
-        try {
-          await ScrapeRunRepository.updateStatus(runId, "failed", e.message);
-        } catch (dbError) {
-          console.error(
-            `[ScraperJob] Unable to update failure status in DB for Run ${runId}:`,
-            dbError,
-          );
-        }
-      }
+      // 3. Dispatch failure callback dynamically
+      await scrapeCallback.send(
+        callback_url,
+        {
+          status: "failed",
+          job_id: job.id,
+          error: error.message,
+        },
+        run_token
+      ).catch((err) => console.error(`[Worker] Failed to send failure callback: ${err.message}`));
 
-      // Re-throw the error so Bull Queue registers it as failed and triggers automatic retries
-      throw e;
+      throw error;
     }
-  },
-};
+  }
+}
+
+module.exports = ScraperJob;
