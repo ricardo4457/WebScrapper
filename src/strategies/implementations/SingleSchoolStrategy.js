@@ -1,28 +1,35 @@
 'use strict';
 
 const { createScrapeTask } = require('../ScrapeTask');
+const scraper = require('../../scrapper/scraper');
 
-/**
- * Plans scraping for one school in one school year.
- *
- * Input must use the canonical Node API contract:
- * { year, teaching_cycle, district, city, school }
- */
 class SingleSchoolStrategy {
-  /**
-   * @param {object} params One school and school-year selection.
-   */
+  
   constructor(params = {}) {
     this.tasks = Object.freeze([createScrapeTask(params)]);
   }
 
-  /**
-   * A new array is returned so callers cannot change the strategy's plan.
-   *
-   * @returns {import('../ScrapeTask').ScrapeTask[]}
-   */
   getTasks() {
     return [...this.tasks];
+  }
+
+  /**
+   * Defines THIS strategy's scraping order/steps for one task.
+   * Different strategies could call these in a different order,
+   * skip steps, or use entirely different scraper functions.
+   */
+  async execute(page, task) {
+    await scraper.selectYearAndCycle(page, {
+      yearLabel: task.year,
+      teachingType: task.teaching_cycle,
+    });
+    await scraper.selectDistrict(page, task.district);
+    await scraper.selectCity(page, task.city);
+    await scraper.selectSchool(page, task.school);
+    await scraper.selectAllSubjects(page);
+    await scraper.goToBooks(page);
+
+    return scraper.extractBooks(page);
   }
 }
 

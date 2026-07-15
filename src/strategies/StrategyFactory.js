@@ -1,6 +1,5 @@
 "use strict";
 
-const FullDistrictStrategy = require("./implementations/FullDistrictStrategy");
 const SingleSchoolStrategy = require("./implementations/SingleSchoolStrategy");
 
 /**
@@ -8,15 +7,15 @@ const SingleSchoolStrategy = require("./implementations/SingleSchoolStrategy");
  */
 const STRATEGIES = Object.freeze({
   single_school: SingleSchoolStrategy,
-  full_district: FullDistrictStrategy,
+
 });
 
 /**
  * Creates the strategy requested by the API.
  *
- * @param {string} name - Strategy name (e.g., 'single_school' or 'full_district').
+ * @param {string} name - Strategy name (e.g., 'single_school').
  * @param {object} params - Data required by the selected strategy.
- * @returns {SingleSchoolStrategy|FullDistrictStrategy}
+ * @returns {SingleSchoolStrategy}
  */
 function createStrategy(name, params = {}) {
   const Strategy = STRATEGIES[name];

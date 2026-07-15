@@ -1,33 +1,6 @@
 'use strict';
 
-/**
- * Canonical task format shared by every strategy and the Worker.
- *
- * @typedef {Object} ScrapeTask
- * @property {string} year School year to select in Wook.
- * @property {string|null} teaching_cycle Teaching cycle, when applicable.
- * @property {string} district School district.
- * @property {string} city School municipality.
- * @property {string} school Exact school name shown by Wook.
- */
 
-/**
- * @typedef {Object} SchoolSelection
- * @property {string} city School municipality.
- * @property {string} school Exact school name shown by Wook.
- */
-
-/**
- * @typedef {Object} YearSelection
- * @property {string} year School year to select in Wook.
- * @property {string|null} teaching_cycle Teaching cycle, when applicable.
- */
-
-/**
- * @param {unknown} value
- * @param {string} fieldName
- * @returns {object}
- */
 function requireObject(value, fieldName) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error(`'${fieldName}' must be an object.`);
@@ -161,13 +134,15 @@ function uniqueTasks(tasks) {
   });
 }
 
+// Clean CommonJS export of helper functions
 module.exports = {
-  createSchoolSelection,
   createScrapeTask,
+  createSchoolSelection,
   createYearSelection,
-  optionalText,
-  requireNonEmptyArray,
-  requireObject,
-  requireText,
+  createTaskKey,
   uniqueTasks,
+  requireObject,
+  requireNonEmptyArray,
+  requireText,
+  optionalText
 };
