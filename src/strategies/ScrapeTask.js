@@ -9,11 +9,7 @@ function requireObject(value, fieldName) {
   return value;
 }
 
-/**
- * @param {unknown} value
- * @param {string} fieldName
- * @returns {unknown[]}
- */
+
 function requireNonEmptyArray(value, fieldName) {
   if (!Array.isArray(value) || value.length === 0) {
     throw new Error(`'${fieldName}' must contain at least one item.`);
@@ -22,11 +18,7 @@ function requireNonEmptyArray(value, fieldName) {
   return value;
 }
 
-/**
- * @param {unknown} value
- * @param {string} fieldName
- * @returns {string}
- */
+
 function requireText(value, fieldName) {
   if (typeof value !== 'string' || value.trim() === '') {
     throw new Error(`'${fieldName}' is required.`);
@@ -35,11 +27,7 @@ function requireText(value, fieldName) {
   return value.trim();
 }
 
-/**
- * @param {unknown} value
- * @param {string} fieldName
- * @returns {string|null}
- */
+
 function optionalText(value, fieldName) {
   if (value === undefined || value === null) {
     return null;
@@ -54,9 +42,7 @@ function optionalText(value, fieldName) {
  * Strategies only use the canonical Node field names. Input translation belongs
  * at the HTTP boundary, before a strategy is selected.
  *
- * @param {unknown} value
- * @param {string} [fieldPrefix]
- * @returns {ScrapeTask}
+
  */
 function createScrapeTask(value, fieldPrefix = '') {
   const source = requireObject(value, fieldPrefix || 'task');
@@ -71,11 +57,7 @@ function createScrapeTask(value, fieldPrefix = '') {
   });
 }
 
-/**
- * @param {unknown} value
- * @param {string} fieldPrefix
- * @returns {SchoolSelection}
- */
+
 function createSchoolSelection(value, fieldPrefix) {
   const source = requireObject(value, fieldPrefix);
 
@@ -85,11 +67,6 @@ function createSchoolSelection(value, fieldPrefix) {
   });
 }
 
-/**
- * @param {unknown} value
- * @param {string} fieldPrefix
- * @returns {YearSelection}
- */
 function createYearSelection(value, fieldPrefix) {
   const source = requireObject(value, fieldPrefix);
 
@@ -103,8 +80,6 @@ function createYearSelection(value, fieldPrefix) {
  * Returns a stable identifier for one task without relying on object property
  * order. It is only used to prevent duplicate queue jobs.
  *
- * @param {ScrapeTask} task
- * @returns {string}
  */
 function createTaskKey(task) {
   return JSON.stringify([
@@ -116,10 +91,7 @@ function createTaskKey(task) {
   ]);
 }
 
-/**
- * @param {ScrapeTask[]} tasks
- * @returns {ScrapeTask[]}
- */
+
 function uniqueTasks(tasks) {
   const keys = new Set();
 
