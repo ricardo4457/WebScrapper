@@ -1,13 +1,10 @@
 'use strict';
 
-const StrategyRunner = require("../runner/StrategyRunner");
 const scrapeCallback = require("../services/ScrapeCallback");
 
 class ScraperJob {
   /**
    * Main entry point for the BullMQ Worker.
-   * 
-   * @param {import('bullmq').Job} job 
    */
   async perform(job) {
     const { callback_url, run_token, ...strategyData } = job.data;
@@ -15,10 +12,16 @@ class ScraperJob {
     console.log(`[Worker] Processing job ${job.id} for Strategy: ${strategyData.strategy}`);
 
     try {
-      // 1. Run the strategy
-      const results = await StrategyRunner.run(strategyData);
+      // 1. Mark as started
+      await job.updateProgress(10); //
 
-      // 2. Dispatch success callback dynamically
+      // 2. Run the strategy
+      const results = await StrategyRunner.run(strategyData);
+      
+      // Mark progress as near complete before the callback
+      await job.updateProgress(90); //
+
+      // 3. Dispatch success callback dynamically
       await scrapeCallback.send(
         callback_url,
         {
@@ -29,11 +32,12 @@ class ScraperJob {
         run_token
       );
 
+      await job.updateProgress(100); //
       return results;
     } catch (error) {
       console.error(`[Worker] Job ${job.id} failed: ${error.message}`);
 
-      // 3. Dispatch failure callback dynamically
+      // 4. Dispatch failure callback dynamically
       await scrapeCallback.send(
         callback_url,
         {
@@ -44,7 +48,7 @@ class ScraperJob {
         run_token
       ).catch((err) => console.error(`[Worker] Failed to send failure callback: ${err.message}`));
 
-      throw error;
+      throw error; 
     }
   }
 }
