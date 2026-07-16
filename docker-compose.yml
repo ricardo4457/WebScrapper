@@ -34,12 +34,11 @@ services:
     depends_on:
       - redis
 
-# O teu Worker dedicado (StrategyRunner)
+# O teu Worker dedicado (jobRunner)
   scraper-worker:
     build: .
     container_name: scraper-worker
-    # 🌟 CHANGED: Pointing to the correct StrategyRunner.js
-    command: ["node", "src/runner/StrategyRunner.js"]
+    command: ["node", "src/runner/jobRunner.js"]
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
