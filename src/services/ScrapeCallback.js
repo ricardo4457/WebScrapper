@@ -3,13 +3,7 @@
 const axios = require("axios");
 
 class ScrapeCallback {
-  /**
-   * Sends scraping results back to the Laravel application.
-   * 
-   * @param {string} callbackUrl - The target URL defined by Laravel.
-   * @param {object} payload - The scraping data or error results.
-   * @param {string} runToken - The dynamic token to authorize the request.
-   */
+
   async send(callbackUrl, payload, runToken) {
     if (!callbackUrl) {
       console.warn("[Callback] No callback URL provided. Skipping notification.");

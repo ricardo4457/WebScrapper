@@ -15,11 +15,10 @@ router.post("/", async (req, res) => {
       school,
       schools, 
       callback_url,
-      run_token, // Received dynamically from Laravel
+      run_token,
     } = req.body;
 
-    // Add job to the queue. 
-    // Note: BullMQ `.add` takes ('jobName', dataPayload, options)
+    // We pass 'scrape-job' as the name, the data payload, and the options
     const job = await scrapeQueue.add(
       "scrape-job", 
       {
@@ -39,10 +38,9 @@ router.post("/", async (req, res) => {
       }
     );
 
-    // 🌟 RETURN PLURAL ARRAY & TOTAL JOBS TO SATISFY LARAVEL
     return res.status(202).json({
       job_tokens: [job.id.toString()], 
-      jobs_total: 1,                  
+      jobs_total: 1,                    
       status: "queued",
     });
 
@@ -56,7 +54,8 @@ router.post("/", async (req, res) => {
 
 router.get("/:id", async (req, res) => {
   try {
-    const job = await scrapeQueue.find(req.params.id);
+    // Use getJob instead of find to match standard BullMQ API
+    const job = await scrapeQueue.queue.getJob(req.params.id);
 
     if (!job) {
       return res.status(404).json({
@@ -64,10 +63,14 @@ router.get("/:id", async (req, res) => {
       });
     }
 
+    // Get current state and progress from the job object
+    const state = await job.getState();
+    const progress = job.progress;
+
     return res.json({
       id: job.id,
-      state: await job.getState(),
-      progress: job.progress,
+      state: state,
+      progress: progress,
     });
   } catch (error) {
     console.error(`[Router] Error fetching job status: ${error.message}`);

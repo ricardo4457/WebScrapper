@@ -14,10 +14,6 @@ const STRATEGIES = Object.freeze({
 
 /**
  * Creates the strategy requested by the API.
- *
- * @param {string} name - Strategy name (e.g., 'single_school').
- * @param {object} params - Data required by the selected strategy.
- * @returns {SingleSchoolStrategy}
  */
 function createStrategy(name, params = {}) {
   const Strategy = STRATEGIES[name];
