@@ -1,12 +1,14 @@
 "use strict";
 
 const SingleSchoolStrategy = require("./implementations/SingleSchoolStrategy");
+const SingleSchoolStrategyTooltip = require("./implementations/SingleSchoolStrategyTooltip");
 
 /**
  * Maps the strategy name received by the API to the class that creates its plan.
  */
 const STRATEGIES = Object.freeze({
   single_school: SingleSchoolStrategy,
+ single_school_tooltip: SingleSchoolStrategyTooltip,
 
 });
 
