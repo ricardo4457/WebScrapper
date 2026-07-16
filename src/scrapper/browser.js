@@ -26,7 +26,11 @@ class BrowserManager {
   async launch(options = {}) {
     this.browser = await chromium.launch({
       headless: options.headless !== false,
-      args: ['--disable-blink-features=AutomationControlled'],
+      args: [
+        '--disable-blink-features=AutomationControlled',
+        '--disable-dev-shm-usage', // usa /tmp em vez de /dev/shm - evita crashes com shm_size pequeno em Docker
+        '--no-sandbox',            // necessário em muitos containers Docker (sem isto o Chromium falha a arrancar)
+      ],
     });
 
     this.context = await this.browser.newContext({

@@ -7,6 +7,12 @@ class ScrapeQueue {
     constructor() {
         this.queue = new Queue("book-scraper", {
             connection: redis,
+            defaultJobOptions: {
+                attempts: 3,
+                backoff: { type: 'exponential', delay: 5000 },
+                removeOnComplete: { age: 3600, count: 1000 }, // limpa jobs completos após 1h (máx 1000 guardados)
+                removeOnFail: { age: 86400 },                  // guarda falhas 24h para debug, depois limpa
+            },
         });
     }
 
