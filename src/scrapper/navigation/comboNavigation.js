@@ -3,10 +3,7 @@
 const SEL = require('../selectors');
 const { sleep } = require('../browser');
 
-/**
- * Reads all options from a combobox-style dropdown (district/city/school/teachingType).
- * Opens the dropdown, reads the visible options, and closes it with Escape.
- */
+/** Reads all options from a dropdown and closes it. */
 async function getOptions(page, buttonSelector, listSelector) {
   await page.waitForSelector(buttonSelector, { state: 'visible', timeout: 12000 });
   await page.click(buttonSelector);
@@ -17,51 +14,48 @@ async function getOptions(page, buttonSelector, listSelector) {
   );
 
   await page.keyboard.press('Escape');
-  await sleep(200);
   return options;
 }
 
-/** Opens a dropdown and clicks the option whose text matches `text`. */
+/** Opens a dropdown and selects the option matching the provided text. */
 async function pickOption(page, buttonSelector, listSelector, text) {
   await page.waitForSelector(buttonSelector, { state: 'visible', timeout: 12000 });
   await page.click(buttonSelector);
   await page.waitForSelector(SEL.optionInList(listSelector), { timeout: 8000 });
   await page.locator(SEL.optionInList(listSelector), { hasText: text }).first().click();
-  await sleep(400);
 }
 
-/**
- * Selects year + cycle/teaching type on the base page (already opened via
- * BrowserManager.openBasePage()).
- *
- * yearValue / yearLabel: both accepted as the year's data-value (e.g. "4"
- * for 4.º Ano). SEL.YEAR_BUTTON ('.anoEscolar') is legacy and no longer
- * exists on the page, so there is no separate text-based fallback anymore -
- * whichever of the two is passed is resolved through the same robust
- * data-value selector.
- * teachingType: cycle/teaching type text (e.g. "Ensino Básico (1º Ciclo)"), optional.
- */
-async function selectYearAndCycle(page, { yearValue, yearLabel, teachingType } = {}) {
-  const resolvedYear = yearValue || yearLabel;
-  if (!resolvedYear) {
-    throw new Error('selectYearAndCycle: yearValue or yearLabel is required.');
+/** Selects the year button; does not touch teaching type. */
+async function selectYear(page, year) {
+  if (!year) {
+    throw new Error('selectYear: year is required.');
   }
 
   await page.waitForSelector(SEL.YEAR_BUTTON_DATA, { state: 'visible', timeout: 12000 });
-  await page.locator(SEL.YEAR_BUTTON_DATA_VALUE(resolvedYear)).click();
-  await sleep(400);
+  await page.locator(SEL.YEAR_BUTTON_DATA_VALUE(year)).click();
+}
 
-  if (teachingType) {
-    const isVisible = await page.isVisible(SEL.TEACHING_TYPE_WRAPPER).catch(() => false);
-    if (isVisible) {
-      await pickOption(page, SEL.TEACHING_TYPE_COMBO, SEL.TEACHING_TYPE_LISTBOX, teachingType);
-    }
-  }
+/** Selects the teaching type/cycle if the wrapper is visible. */
+async function selectTeachingType(page, teachingType) {
+  if (!teachingType) return;
+
+  const isVisible = await page.isVisible(SEL.TEACHING_TYPE_WRAPPER).catch(() => false);
+  if (!isVisible) return;
+
+  await pickOption(page, SEL.TEACHING_TYPE_COMBO, SEL.TEACHING_TYPE_LISTBOX, teachingType);
+}
+
+/** Helper to select both year and cycle. */
+async function selectYearAndCycle(page, { yearValue, yearLabel, teachingType } = {}) {
+  const resolvedYear = yearValue || yearLabel;
+
+  await selectYear(page, resolvedYear);
+  await selectTeachingType(page, teachingType);
 
   await page.waitForSelector(SEL.DISTRICT_COMBO, { state: 'visible', timeout: 10000 });
 }
 
-/** Discovers the teaching types/cycles available for the currently selected year (if any). */
+/** Discovers available teaching types for the current year. */
 async function discoverTeachingTypes(page) {
   const isVisible = await page.isVisible(SEL.TEACHING_TYPE_WRAPPER).catch(() => false);
   if (!isVisible) return [];
@@ -84,7 +78,7 @@ async function discoverCities(page) {
   return getOptions(page, SEL.CITY_COMBO, SEL.CITY_LISTBOX);
 }
 
-/** Discovers the schools available for the currently selected district/city. */
+/** Discovers available schools for the current district/city. */
 async function discoverSchools(page) {
   try {
     return await getOptions(page, SEL.SCHOOL_COMBO, SEL.SCHOOL_LISTBOX);
@@ -93,11 +87,11 @@ async function discoverSchools(page) {
   }
 }
 
-/** Selects a specific school by name in the school dropdown. */
+/** Selects a school by name. */
 async function selectSchool(page, schoolName) {
   await page.waitForSelector(SEL.SCHOOL_COMBO, { state: 'visible', timeout: 10000 });
   await page.click(SEL.SCHOOL_COMBO);
-  await sleep(500);
+  await page.waitForSelector(SEL.SCHOOL_OPTION, { state: 'visible', timeout: 8000 });
 
   const option = page.locator(SEL.SCHOOL_OPTION, { hasText: schoolName });
   const count = await option.count();
@@ -105,12 +99,13 @@ async function selectSchool(page, schoolName) {
     throw new Error(`selectSchool: school not found -> "${schoolName}"`);
   }
   await option.first().click();
-  await sleep(400);
 }
 
 module.exports = {
   getOptions,
   pickOption,
+  selectYear,
+  selectTeachingType,
   selectYearAndCycle,
   discoverTeachingTypes,
   selectDistrict,
