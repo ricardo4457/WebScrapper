@@ -8,6 +8,11 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Tipos de recurso que bloqueamos por rota - acelera o carregamento sem
+// tocar em nada de que a navegação/JS da página dependa (document, script,
+// xhr/fetch, stylesheet continuam a passar).
+const BLOCKED_RESOURCE_TYPES = new Set(['image', 'font', 'media']);
+
 /**
  * Manages a single Playwright browser + context for one scraping task.
  * One BrowserManager instance = one task (SingleSchoolStrategy task,
@@ -22,6 +27,10 @@ class BrowserManager {
   /**
    * Launches Chromium. headless defaults to true; pass { headless: false }
    * locally to watch the scraper run.
+   * options.blockResources (default true) bloqueia imagens/fontes/media
+   * via routing para acelerar o load - desativa se precisares de ver a
+   * página completa (ex: debug visual) ou se o mapa SVG depender de algum
+   * destes tipos de recurso.
    */
   async launch(options = {}) {
     this.browser = await chromium.launch({
@@ -41,6 +50,16 @@ class BrowserManager {
         '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     });
 
+    if (options.blockResources !== false) {
+      await this.context.route('**/*', route => {
+        const type = route.request().resourceType();
+        if (BLOCKED_RESOURCE_TYPES.has(type)) {
+          return route.abort();
+        }
+        return route.continue();
+      });
+    }
+
     return this.browser;
   }
 
@@ -59,11 +78,20 @@ class BrowserManager {
     try {
       await page.waitForSelector(SEL.ACCEPT_COOKIES, { timeout: 5000 });
       await page.click(SEL.ACCEPT_COOKIES);
-      await sleep(300);
     } catch {
       // banner de cookies não apareceu (ex: já aceite antes) - continua normalmente
     }
 
+    return page;
+  }
+
+  /**
+   * Reutilizável entre tasks (ex: FullDistrictStrategy a percorrer várias
+   * escolas do mesmo distrito): volta à página base sem fechar/relançar o
+   * browser inteiro. Muito mais barato do que close()+launch() por escola.
+   */
+  async resetToBasePage(page) {
+    await page.goto(SEL.BASE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
     return page;
   }
 
