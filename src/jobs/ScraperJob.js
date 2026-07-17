@@ -1,55 +1,26 @@
-'use strict';
+"use strict";
 
-const scrapeCallback = require("../services/ScrapeCallback");
+const StrategyRunner = require("../runner/StrategyRunner");
 
 class ScraperJob {
   /**
    * Main entry point for the BullMQ Worker.
+   * Runs the strategy and returns the result - the callback to Laravel
+   * is handled in the JobRunner, within the worker.on("completed"/"failed") events.
    */
   async perform(job) {
-    const { callback_url, run_token, ...strategyData } = job.data;
+    const { strategy: strategyName, ...rest } = job.data;
 
-    console.log(`[Worker] Processing job ${job.id} for Strategy: ${strategyData.strategy}`);
+    console.log(
+      `[Worker] Processing job ${job.id} for Strategy: ${strategyName}`,
+    );
+    console.log(`[Worker] Job data: ${JSON.stringify(job.data)}`);
 
-    try {
-      // 1. Mark as started
-      await job.updateProgress(10); //
+    await job.updateProgress(10);
+    const results = await StrategyRunner.run(job.data);
+    await job.updateProgress(100);
 
-      // 2. Run the strategy
-      const results = await StrategyRunner.run(strategyData);
-      
-      // Mark progress as near complete before the callback
-      await job.updateProgress(90); //
-
-      // 3. Dispatch success callback dynamically
-      await scrapeCallback.send(
-        callback_url,
-        {
-          status: "completed",
-          job_id: job.id,
-          results: results,
-        },
-        run_token
-      );
-
-      await job.updateProgress(100); //
-      return results;
-    } catch (error) {
-      console.error(`[Worker] Job ${job.id} failed: ${error.message}`);
-
-      // 4. Dispatch failure callback dynamically
-      await scrapeCallback.send(
-        callback_url,
-        {
-          status: "failed",
-          job_id: job.id,
-          error: error.message,
-        },
-        run_token
-      ).catch((err) => console.error(`[Worker] Failed to send failure callback: ${err.message}`));
-
-      throw error; 
-    }
+    return results;
   }
 }
 

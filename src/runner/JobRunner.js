@@ -1,8 +1,11 @@
 const { Worker } = require("bullmq");
 const redis = require("../config/redis");
 const ScraperJob = require("../jobs/ScraperJob");
+const scrapeCallback = require("../services/ScrapeCallback");
 
 console.log(" Job Runner is starting...");
+
+const scraperJob = new ScraperJob();
 
 const worker = new Worker(
   "book-scraper",
@@ -10,49 +13,68 @@ const worker = new Worker(
     console.log(
       `[JobRunner] Started job ${job.id} for strategy: ${job.data.strategy}`,
     );
-
-    try {
-      // Execute the scraping logic
-      // *Note: Adjust this method call based on how ScraperJob is actually exported
-      return await ScraperJob.execute(job.data);
-    } catch (error) {
-      console.error(`[JobRunner] Error in job ${job.id}:`, error);
-      throw error;
-    }
+    return scraperJob.perform(job);
   },
   {
     connection: redis,
     concurrency: 2,
   },
 );
+
 worker.on("completed", async (job, returnValue) => {
-  console.log(` Job ${job.id} concluído.`);
+  const { callback_url, run_token } = job.data;
+  const hasError = returnValue?.error != null;
+
+  console.log(
+    hasError
+      ? ` Job ${job.id} terminou com erro de scraping.`
+      : ` Job ${job.id} concluído.`,
+  );
+
   try {
-    await axios.post(job.data.callback_url, {
-      run_token: job.data.run_token,
-      job_token: job.data.job_token,
-      status: "completed",
-      books: returnValue, // Envia o objeto formatado com school e items
-    });
+    // Send results back to the application via callback
+    await scrapeCallback.send(
+      callback_url,
+      {
+        status: hasError ? "failed" : "completed",
+        job_token: job.id,
+        results: returnValue,
+        error_message: hasError ? returnValue.error : undefined,
+      },
+      run_token,
+    );
   } catch (error) {
-    console.error(` Erro no callback:`, error.message);
+    // Log failures in the callback process itself
+    console.error(` Erro no callback para job ${job.id}:`, error.message);
+    if (error.response) {
+      console.error(" Status:", error.response.status);
+      console.error(" Body:", JSON.stringify(error.response.data));
+    }
+  } finally {
+    // Close worker connection after processing
+    await worker.close();
   }
 });
 
-// Evento de Erro
 worker.on("failed", async (job, err) => {
   console.error(` Job ${job.id} failed: ${err.message}`);
 
+  const { callback_url, run_token } = job.data;
+
   try {
-    await axios.post(job.data.callback_url, {
-      run_token: job.data.run_token, // Obrigatório pelo ScrapeCallbackRequest
-      job_token: job.id.toString(),
-      status: "failed",
-      error: err.message,
-    });
+    // Notify application of catastrophic job failure
+    await scrapeCallback.send(
+      callback_url,
+      {
+        status: "failed",
+        job_token: job.id,
+        error: err.message,
+      },
+      run_token,
+    );
   } catch (error) {
     console.error(
-      ` Failed to send failure callback for ${job.id}:`,
+      ` Failed to send failure callback for job ${job.id}:`,
       error.message,
     );
   }

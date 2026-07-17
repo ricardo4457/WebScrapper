@@ -1,4 +1,5 @@
 "use strict";
+
 const { createStrategy } = require("../strategies");
 const { BrowserManager } = require("../scrapper/browser");
 
@@ -12,27 +13,64 @@ class StrategyRunner {
 
     try {
       await browserManager.launch();
-      for (const task of tasks) {
-        const page = await browserManager.openBasePage();
+
+      // Reuse page to improve speed and avoid re-triggering cookie banners
+      let page = await browserManager.openBasePage();
+
+      for (let i = 0; i < tasks.length; i++) {
+        const task = tasks[i];
+
+        if (i > 0) {
+          await browserManager.resetToBasePage(page);
+        }
+
+        const schoolInfo = {
+          name: task.school,
+          district: task.district,
+          city: task.city,
+        };
+
         try {
           const books = await strategy.execute(page, task);
-          // Estrutura esperada pelo BookImportService do Laravel
+
+          // Map raw data to match Laravel's snake_case requirements
           results.push({
-            school: {
-              name: task.school, // Certifica-te que 'task' tem estes campos
-              district: task.district,
-              city: task.city
-            },
-            items: books
+            school: schoolInfo,
+            items: books.map((book) => ({
+              title: book.title,
+              publisher: book.publisher,
+              cover_path: book.coverImage,
+              price: book.price,
+              discipline: book.discipline,
+              type: book.type,
+              year: task.year,
+              teaching_cycle: task.teaching_cycle,
+            })),
           });
-        } finally {
-          await page.close().catch(() => {});
+        } catch (error) {
+          // Log error for this task and continue batch processing
+          results.push({
+            school: schoolInfo,
+            error: error.message,
+            items: [],
+          });
+
+          // Reset page state to recover from potential navigation crashes
+          try {
+            await page.close().catch(() => {});
+            page = await browserManager.openBasePage();
+          } catch (e) {
+            // Recovery failed; next iteration will try again
+          }
         }
       }
+
+      await page.close().catch(() => {});
       return results;
     } finally {
       await browserManager.close();
     }
   }
 }
+
 module.exports = StrategyRunner;
