@@ -52,7 +52,16 @@ services:
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+    # Permite ao container resolver host.docker.internal -> máquina host,
+    # necessário para o callback do worker alcançar o Laravel a correr fora
+    # do Docker (php artisan serve / Valet / Herd na porta 8000).
+    # host-gateway funciona em Linux (Docker 20.10+); Mac/Windows já
+    # resolvem host.docker.internal nativamente mesmo sem isto, mas fica
+    # explícito e sem custo.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     shm_size: '1gb'
+    ipc: host
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules # Prevents local node_modules from overwriting container modules
