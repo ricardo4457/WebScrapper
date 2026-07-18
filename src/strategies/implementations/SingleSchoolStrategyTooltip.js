@@ -1,15 +1,13 @@
-'use strict';
+"use strict";
 
-const { createScrapeTask } = require('../ScrapeTask');
-const scraper = require('../../scrapper/scraper');
+const { createScrapeTask } = require("../ScrapeTask");
+const scraper = require("../../scrapper/scraper");
 
 /**
- * Variante da SingleSchoolStrategy: distrito/cidade via mapa SVG
- * (index_tooltips.js) em vez dos combos. Fallback enquanto CITY_COMBO/
- * SCHOOL_COMBO estiverem [UNVERIFIED] em selectors.js.
+ * Single school strategy using the SVG map for district and city selection.
+ * Temporary fallback until combo selectors are supported.
  */
 class SingleSchoolStrategyTooltip {
-
   constructor(params = {}) {
     this.tasks = Object.freeze([createScrapeTask(params)]);
   }
@@ -18,6 +16,9 @@ class SingleSchoolStrategyTooltip {
     return [...this.tasks];
   }
 
+  /**
+   * Returns the raw scraped books.
+   */
   async execute(page, task) {
     await scraper.selectYearAndCycle(page, {
       yearLabel: task.year,

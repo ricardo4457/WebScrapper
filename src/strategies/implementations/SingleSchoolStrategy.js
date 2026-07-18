@@ -1,10 +1,9 @@
-'use strict';
+"use strict";
 
-const { createScrapeTask } = require('../ScrapeTask');
-const scraper = require('../../scrapper/scraper');
+const { createScrapeTask } = require("../ScrapeTask");
+const scraper = require("../../scrapper/scraper");
 
 class SingleSchoolStrategy {
-  
   constructor(params = {}) {
     this.tasks = Object.freeze([createScrapeTask(params)]);
   }
@@ -14,9 +13,8 @@ class SingleSchoolStrategy {
   }
 
   /**
-   * Defines THIS strategy's scraping order/steps for one task.
-   * Different strategies could call these in a different order,
-   * skip steps, or use entirely different scraper functions.
+   * Runs the scraping flow for a single school.
+   * Returns the raw scraped books.
    */
   async execute(page, task) {
     await scraper.selectYearAndCycle(page, {
