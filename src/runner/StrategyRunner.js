@@ -2,6 +2,7 @@
 
 const { createStrategy } = require("../strategies");
 const { BrowserManager } = require("../scrapper/browser");
+const bookPayload = require("../payloads/BookPayload");
 
 class StrategyRunner {
   static async run(input) {
@@ -14,7 +15,7 @@ class StrategyRunner {
     try {
       await browserManager.launch();
 
-      // Reuse page to improve speed and avoid re-triggering cookie banners
+      // Reuse the page between tasks.
       let page = await browserManager.openBasePage();
 
       for (let i = 0; i < tasks.length; i++) {
@@ -24,43 +25,28 @@ class StrategyRunner {
           await browserManager.resetToBasePage(page);
         }
 
-        const schoolInfo = {
-          name: task.school,
-          district: task.district,
-          city: task.city,
-        };
-
         try {
+          // Build the standard payload from the scraped books.
           const books = await strategy.execute(page, task);
-
-          // Map raw data to match Laravel's snake_case requirements
-          results.push({
-            school: schoolInfo,
-            items: books.map((book) => ({
-              title: book.title,
-              publisher: book.publisher,
-              cover_path: book.coverImage,
-              price: book.price,
-              discipline: book.discipline,
-              type: book.type,
-              year: task.year,
-              teaching_cycle: task.teaching_cycle,
-            })),
-          });
+          results.push(bookPayload.buildImportPayload(task, books));
         } catch (error) {
-          // Log error for this task and continue batch processing
+          // Continue processing the remaining tasks if one fails.
           results.push({
-            school: schoolInfo,
+            school: {
+              name: task.school,
+              district: task.district,
+              city: task.city,
+            },
             error: error.message,
             items: [],
           });
 
-          // Reset page state to recover from potential navigation crashes
+          // Recreate the page if it becomes unusable.
           try {
             await page.close().catch(() => {});
             page = await browserManager.openBasePage();
           } catch (e) {
-            // Recovery failed; next iteration will try again
+            // Recreate the page if it becomes unusable.
           }
         }
       }
