@@ -1,123 +1,122 @@
-'use strict';
+"use strict";
 
-const SEL = require('../selectors');
-const { sleep } = require('../browser');
+const SEL = require("../selectors");
 
 /**
- * Reads all options from a dropdown. 
- * Opens the list, extracts text content, and closes it via Escape.
+ * Returns the current map tooltip text.
  */
-async function getOptions(page, buttonSelector, listSelector) {
-  await page.waitForSelector(buttonSelector, { state: 'visible', timeout: 12000 });
-  await page.click(buttonSelector);
-  await page.waitForSelector(SEL.optionInList(listSelector), { timeout: 8000 });
+async function readTooltipText(page) {
+  return page.evaluate((tooltipSelector) => {
+    const tooltip = document.querySelector(tooltipSelector);
+    if (!tooltip) return null;
+    const style = window.getComputedStyle(tooltip);
+    if (style.display === "none" || style.opacity === "0") return null;
+    return tooltip.textContent?.trim() || null;
+  }, SEL.MAP_TOOLTIP);
+}
 
-  const options = await page.$$eval(SEL.optionInList(listSelector), elements =>
-    elements.map(el => el.textContent.trim()).filter(Boolean)
+/**
+ * Hovers a map shape and waits for its tooltip.
+ */
+async function hoverAndReadTooltip(
+  page,
+  elementHandle,
+  { timeout = 3000 } = {},
+) {
+  const box = await elementHandle.boundingBox();
+  if (!box) return null;
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+
+  const deadline = Date.now() + timeout;
+  let text = await readTooltipText(page);
+  while (!text && Date.now() < deadline) {
+    await page.waitForTimeout(50); // passo de polling, não um sleep às cegas
+    text = await readTooltipText(page);
+  }
+  return text;
+}
+
+/**
+ * Clicks the map shape matching the given tooltip.
+ */
+
+async function clickMapShapeByTooltip(page, name) {
+  await page.waitForSelector(`${SEL.CONTENT_MAP} svg`, {
+    state: "visible",
+    timeout: 10000,
+  });
+
+  const contentMap = page.locator(SEL.CONTENT_MAP);
+  const shapes = await contentMap
+    .locator(SEL.CONTENT_MAP_SHAPES)
+    .elementHandles();
+  const target = name.trim().toUpperCase();
+
+  for (const shape of shapes) {
+    const tooltip = await hoverAndReadTooltip(page, shape);
+    if (tooltip && tooltip.toUpperCase() === target) {
+      await shape.click();
+      return;
+    }
+  }
+
+  throw new Error(
+    `clickMapShapeByTooltip: "${name}" não encontrado entre ${shapes.length} elementos do mapa.`,
   );
-
-  await page.keyboard.press('Escape');
-  return options;
-}
-
-/** Opens a dropdown and selects the option matching the provided text. */
-async function pickOption(page, buttonSelector, listSelector, text) {
-  await page.waitForSelector(buttonSelector, { state: 'visible', timeout: 12000 });
-  await page.click(buttonSelector);
-  await page.waitForSelector(SEL.optionInList(listSelector), { timeout: 8000 });
-  await page.locator(SEL.optionInList(listSelector), { hasText: text }).first().click();
-}
-
-/** Selects the year button (e.g., "4" for 4.º Ano). */
-async function selectYear(page, year) {
-  if (!year) {
-    throw new Error('selectYear: year is required.');
-  }
-
-  await page.waitForSelector(SEL.YEAR_BUTTON_DATA, { state: 'visible', timeout: 12000 });
-  await page.locator(SEL.YEAR_BUTTON_DATA_VALUE(year)).click();
 }
 
 /**
- * Selects the teaching cycle. Skips if the wrapper is not visible 
- * (some years have only one cycle and omit this UI).
+ * Returns all visible map labels.
  */
-async function selectTeachingType(page, teachingType) {
-  if (!teachingType) return;
+async function discoverMapLabels(page) {
+  await page.waitForSelector(`${SEL.CONTENT_MAP} svg`, {
+    state: "visible",
+    timeout: 10000,
+  });
 
-  const isVisible = await page.isVisible(SEL.TEACHING_TYPE_WRAPPER).catch(() => false);
-  if (!isVisible) return;
+  const contentMap = page.locator(SEL.CONTENT_MAP);
+  const shapes = await contentMap
+    .locator(SEL.CONTENT_MAP_SHAPES)
+    .elementHandles();
 
-  await pickOption(page, SEL.TEACHING_TYPE_COMBO, SEL.TEACHING_TYPE_LISTBOX, teachingType);
-}
-
-/** Wrapper to select both year and cycle/teaching type. */
-async function selectYearAndCycle(page, { yearValue, yearLabel, teachingType } = {}) {
-  const resolvedYear = yearValue || yearLabel;
-
-  await selectYear(page, resolvedYear);
-  await selectTeachingType(page, teachingType);
-
-  await page.waitForSelector(SEL.DISTRICT_COMBO, { state: 'visible', timeout: 10000 });
-}
-
-/** Discovers available teaching cycles for the currently selected year. */
-async function discoverTeachingTypes(page) {
-  const isVisible = await page.isVisible(SEL.TEACHING_TYPE_WRAPPER).catch(() => false);
-  if (!isVisible) return [];
-  return getOptions(page, SEL.TEACHING_TYPE_COMBO, SEL.TEACHING_TYPE_LISTBOX);
-}
-
-async function selectDistrict(page, district) {
-  await pickOption(page, SEL.DISTRICT_COMBO, SEL.DISTRICT_LISTBOX, district);
-}
-
-async function discoverDistricts(page) {
-  return getOptions(page, SEL.DISTRICT_COMBO, SEL.DISTRICT_LISTBOX);
-}
-
-async function selectCity(page, city) {
-  await pickOption(page, SEL.CITY_COMBO, SEL.CITY_LISTBOX, city);
-}
-
-async function discoverCities(page) {
-  return getOptions(page, SEL.CITY_COMBO, SEL.CITY_LISTBOX);
-}
-
-/** Discovers schools available for the currently selected district/city. */
-async function discoverSchools(page) {
-  try {
-    return await getOptions(page, SEL.SCHOOL_COMBO, SEL.SCHOOL_LISTBOX);
-  } catch {
-    return [];
+  const labels = [];
+  for (const shape of shapes) {
+    const tooltip = await hoverAndReadTooltip(page, shape);
+    if (tooltip) labels.push(tooltip);
   }
+  return labels;
 }
 
-/** Selects a specific school by name. */
-async function selectSchool(page, schoolName) {
-  await page.waitForSelector(SEL.SCHOOL_COMBO, { state: 'visible', timeout: 10000 });
-  await page.click(SEL.SCHOOL_COMBO);
-  await page.waitForSelector(SEL.SCHOOL_OPTION, { state: 'visible', timeout: 8000 });
+/**
+ * Selects a district from the map.
+ */
+async function selectDistrictViaMap(page, district) {
+  await clickMapShapeByTooltip(page, district);
+}
 
-  const option = page.locator(SEL.SCHOOL_OPTION, { hasText: schoolName });
-  const count = await option.count();
-  if (count === 0) {
-    throw new Error(`selectSchool: school not found -> "${schoolName}"`);
-  }
-  await option.first().click();
+/**
+ * Selects a city from the map.
+ */
+async function selectCityViaMap(page, city) {
+  await clickMapShapeByTooltip(page, city);
+}
+
+async function discoverDistrictsViaMap(page) {
+  return discoverMapLabels(page);
+}
+
+async function discoverCitiesViaMap(page) {
+  return discoverMapLabels(page);
 }
 
 module.exports = {
-  getOptions,
-  pickOption,
-  selectYear,
-  selectTeachingType,
-  selectYearAndCycle,
-  discoverTeachingTypes,
-  selectDistrict,
-  discoverDistricts,
-  selectCity,
-  discoverCities,
-  discoverSchools,
-  selectSchool,
+  readTooltipText,
+  hoverAndReadTooltip,
+  clickMapShapeByTooltip,
+  discoverMapLabels,
+  selectDistrictViaMap,
+  selectCityViaMap,
+  discoverDistrictsViaMap,
+  discoverCitiesViaMap,
 };
