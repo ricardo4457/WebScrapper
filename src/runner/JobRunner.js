@@ -23,23 +23,59 @@ const worker = new Worker(
 
 worker.on("completed", async (job, returnValue) => {
   const { callback_url, run_token } = job.data;
-  const hasError = returnValue?.error != null;
+
+  // Handle unexpected worker results.
+  if (!Array.isArray(returnValue)) {
+    console.error(
+      ` Job ${job.id} devolveu um resultado inesperado (não é array):`,
+      returnValue,
+    );
+    try {
+      await scrapeCallback.send(
+        callback_url,
+        {
+          status: "failed",
+          job_token: job.id,
+          books: [],
+          error:
+            "Resultado do worker em formato inesperado - ver logs do scraper-worker.",
+        },
+        run_token,
+      );
+    } catch (error) {
+      console.error(` Erro no callback para job ${job.id}:`, error.message);
+    }
+    return;
+  }
+
+  const failedEntries = returnValue.filter((entry) => entry?.error);
+  const hasError = failedEntries.length > 0;
 
   console.log(
     hasError
-      ? ` Job ${job.id} terminou com erro de scraping.`
+      ? ` Job ${job.id} terminou com erro em ${failedEntries.length}/${returnValue.length} escola(s).`
       : ` Job ${job.id} concluído.`,
   );
 
+  // Log failed schools.
+  if (hasError) {
+    failedEntries.forEach((entry) => {
+      console.error(`   ↳ ${entry.school?.name}: ${entry.error}`);
+    });
+  }
+
   try {
-    // Send results back to the application via callback
+    // Send the job result to the API.
     await scrapeCallback.send(
       callback_url,
       {
         status: hasError ? "failed" : "completed",
         job_token: job.id,
-        results: returnValue,
-        error_message: hasError ? returnValue.error : undefined,
+        books: returnValue,
+        // Log callback failures.
+        error: hasError
+          ? failedEntries.map((e) => `${e.school?.name}: ${e.error}`).join("; ")
+          : undefined,
       },
       run_token,
     );
@@ -50,10 +86,8 @@ worker.on("completed", async (job, returnValue) => {
       console.error(" Status:", error.response.status);
       console.error(" Body:", JSON.stringify(error.response.data));
     }
-  } finally {
-    // Close worker connection after processing
-    await worker.close();
   }
+  // Keep the worker running for the next jobs.
 });
 
 worker.on("failed", async (job, err) => {
@@ -62,7 +96,7 @@ worker.on("failed", async (job, err) => {
   const { callback_url, run_token } = job.data;
 
   try {
-    // Notify application of catastrophic job failure
+    // Notify the API that the job failed.
     await scrapeCallback.send(
       callback_url,
       {
@@ -79,3 +113,18 @@ worker.on("failed", async (job, err) => {
     );
   }
 });
+
+// Handle worker-level errors.
+worker.on("error", (err) => {
+  console.error(" [JobRunner] Erro de conexão/Worker:", err.message);
+});
+
+// Gracefully shut down the worker.
+async function shutdown(signal) {
+  console.log(`[JobRunner] ${signal} recebido, a encerrar worker...`);
+  await worker.close();
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
