@@ -26,5 +26,8 @@
     "mysql2": "^3.22.4",
     "p-limit": "^7.3.0",
     "playwright": "^1.60.0"
+  },
+  "allowScripts": {
+    "msgpackr-extract@3.0.4": true
   }
 }
