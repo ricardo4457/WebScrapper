@@ -3,48 +3,43 @@
 const SEL = require('./selectors');
 
 /**
- * Selects all available subjects for the current school.
- * 
- * Optimized to use a single page.evaluate() call to click all labels 
- * simultaneously, which is significantly faster than individual clicks.
+ * Select all available subjects.
  */
 async function selectAllSubjects(page) {
   const container = page.locator(SEL.SUBJECTS_CONTAINER);
   await container.scrollIntoViewIfNeeded();
 
-  const count = await page.evaluate(
-    ({ containerSel, labelSel }) => {
-      const containerEl = document.querySelector(containerSel);
-      if (!containerEl) return 0;
+  const labels = await container.locator(SEL.SUBJECTS_LABEL).all();
 
-      const labels = containerEl.querySelectorAll(labelSel);
-      labels.forEach(label => label.click());
-      return labels.length;
-    },
-    { containerSel: SEL.SUBJECTS_CONTAINER, labelSel: SEL.SUBJECTS_LABEL }
-  );
+  for (const label of labels) {
+    await label.scrollIntoViewIfNeeded();
+    await label.click();
+  }
 
-  return count;
+  return labels.length;
 }
 
 /**
- * Fallback: Selects subjects one by one with individual scrolling.
- * Use if batch clicking fails to trigger checkboxes correctly in specific layouts.
+ * Fallback that skips failed subject clicks.
  */
 async function selectAllSubjectsSequential(page) {
   const container = page.locator(SEL.SUBJECTS_CONTAINER);
   await container.scrollIntoViewIfNeeded();
 
-  const labels = await container.locator(SEL.SUBJECTS_LABEL).elementHandles();
+  const labels = await container.locator(SEL.SUBJECTS_LABEL).all();
+  let selected = 0;
+
   for (const label of labels) {
     await label.scrollIntoViewIfNeeded();
     try {
       await label.click({ force: true });
-    } catch {
-      // Continue if an individual click fails
+      selected++;
+    } catch (err) {
+      console.warn(`⚠️ Falha ao clicar numa disciplina: ${err.message}`);
     }
   }
-  return labels.length;
+
+  return selected;
 }
 
 module.exports = {
