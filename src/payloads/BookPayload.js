@@ -18,6 +18,7 @@ function buildImportPayload(task, books) {
     items: books.map(book => ({
       title: book.title,
       publisher: book.publisher,
+      authors: book.authors,
       cover_path: book.coverImage,
       price: book.price,
       discipline: book.discipline,
