@@ -1,6 +1,7 @@
 "use strict";
 
 const SEL = require("../selectors");
+const { humanDelay } = require("../humanization");
 
 /**
  * Returns the current map tooltip text.
@@ -57,6 +58,8 @@ async function clickMapShapeByTooltip(page, name) {
     const tooltip = await hoverAndReadTooltip(page, shape);
     if (tooltip && tooltip.toUpperCase() === target) {
       await shape.click();
+      // Mimic human interaction with a random delay.
+      await humanDelay(200, 600);
       return;
     }
   }

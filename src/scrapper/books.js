@@ -1,6 +1,7 @@
-'use strict';
+"use strict";
 
-const SEL = require('./selectors');
+const SEL = require("./selectors");
+const { humanDelay } = require("./humanization");
 
 /**
  * Moves from the subjects page to the adopted books page.
@@ -13,29 +14,30 @@ const SEL = require('./selectors');
 async function goToBooks(page) {
   const continueButton = page.locator(SEL.CONTINUE_BUTTON);
   await continueButton.scrollIntoViewIfNeeded();
+
+  // Mimic human interaction with a random delay.
+  await humanDelay(300, 700);
   await continueButton.click();
 
   try {
     await page.waitForSelector(
       `${SEL.ADOPTED_BOOKS_CONTAINER}, ${SEL.NO_BOOK_TEXT}`,
-      { state: 'visible', timeout: 15000 }
+      { state: "visible", timeout: 15000 },
     );
   } catch {
     throw new Error(
       'goToBooks: nem a lista de livros adotados nem a mensagem de "sem adoções" apareceram. ' +
-      'ADOPTED_BOOKS_CONTAINER/NO_BOOK_TEXT podem precisar de revalidação.'
+        "ADOPTED_BOOKS_CONTAINER/NO_BOOK_TEXT podem precisar de revalidação.",
     );
   }
 }
 
 /**
- * Extracts the list of adopted books (or "no adoptions") from the current page.
+ * Extracts the adopted books from the current page.
  *
- * NOTE: page.evaluate() only accepts JSON-serializable arguments. SEL itself
- * is not safe to pass directly because it carries the optionInList function -
- * Playwright would throw trying to serialize it. Only a plain subset of the
- * BOOK_* selectors is passed through here.
+ * Only serializable selectors are passed to page.evaluate().
  */
+
 async function extractBooks(page) {
   const bookSel = {
     BOOK_BLOCK: SEL.BOOK_BLOCK,
@@ -50,11 +52,11 @@ async function extractBooks(page) {
     NO_BOOK_TEXT: SEL.NO_BOOK_TEXT,
   };
 
-  return page.evaluate(sel => {
+  return page.evaluate((sel) => {
     const bookBlocks = document.querySelectorAll(sel.BOOK_BLOCK);
     const books = [];
 
-    bookBlocks.forEach(block => {
+    bookBlocks.forEach((block) => {
       const disciplineEl = block.querySelector(sel.BOOK_DISCIPLINE);
       const discipline = disciplineEl ? disciplineEl.textContent.trim() : null;
 
@@ -65,7 +67,9 @@ async function extractBooks(page) {
       const title = titleEl ? titleEl.textContent.trim() : null;
 
       const authorsEl = block.querySelector(sel.BOOK_AUTHORS);
-      const authors = authorsEl ? authorsEl.textContent.split(',').map(a => a.trim()) : [];
+      const authors = authorsEl
+        ? authorsEl.textContent.split(",").map((a) => a.trim())
+        : [];
 
       const publisherEl = block.querySelector(sel.BOOK_PUBLISHER);
       const publisher = publisherEl ? publisherEl.textContent.trim() : null;
@@ -74,24 +78,43 @@ async function extractBooks(page) {
       const coverImage = coverEl ? coverEl.src : null;
 
       const priceEl = block.querySelector(sel.BOOK_PRICE);
-      const price = priceEl ? parseFloat(priceEl.getAttribute('data-preco')) : null;
+      const price = priceEl
+        ? parseFloat(priceEl.getAttribute("data-preco"))
+        : null;
 
       const quantityInput = block.querySelector(sel.BOOK_QUANTITY_INPUT);
-      const course = quantityInput ? parseInt(quantityInput.getAttribute('data-curso'), 10) : null;
-      const level = quantityInput ? parseInt(quantityInput.getAttribute('data-nivel'), 10) : null;
+      const course = quantityInput
+        ? parseInt(quantityInput.getAttribute("data-curso"), 10)
+        : null;
+      const level = quantityInput
+        ? parseInt(quantityInput.getAttribute("data-nivel"), 10)
+        : null;
 
       if (title) {
         books.push({
-          discipline, type, title, authors, publisher,
-          coverImage, price, course, level,
+          discipline,
+          type,
+          title,
+          authors,
+          publisher,
+          coverImage,
+          price,
+          course,
+          level,
         });
       } else {
         const noBookEl = block.querySelector(sel.NO_BOOK_TEXT);
         if (noBookEl) {
           books.push({
-            discipline, type: null, title: noBookEl.textContent.trim(),
-            authors: [], publisher: null, coverImage: null, price: null,
-            course, level,
+            discipline,
+            type: null,
+            title: noBookEl.textContent.trim(),
+            authors: [],
+            publisher: null,
+            coverImage: null,
+            price: null,
+            course,
+            level,
           });
         }
       }

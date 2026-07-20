@@ -1,6 +1,7 @@
-'use strict';
+"use strict";
 
-const SEL = require('./selectors');
+const SEL = require("./selectors");
+const { humanDelay } = require("./humanization");
 
 /**
  * Select all available subjects.
@@ -14,6 +15,8 @@ async function selectAllSubjects(page) {
   for (const label of labels) {
     await label.scrollIntoViewIfNeeded();
     await label.click();
+    // Mimic human interaction with a random delay.
+    await humanDelay(150, 400);
   }
 
   return labels.length;
@@ -34,8 +37,9 @@ async function selectAllSubjectsSequential(page) {
     try {
       await label.click({ force: true });
       selected++;
+      await humanDelay(150, 400);
     } catch (err) {
-      console.warn(`⚠️ Falha ao clicar numa disciplina: ${err.message}`);
+      console.warn(`Failed to click a subject: ${err.message}`);
     }
   }
 
