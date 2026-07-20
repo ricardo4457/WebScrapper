@@ -2,6 +2,7 @@
 
 const { chromium } = require('playwright');
 const SEL = require('./selectors');
+const { assertNotBlocked } = require('./blockDetection');
 
 /** Simple delay helper used throughout scraper.js between UI interactions. */
 function sleep(ms) {
@@ -69,7 +70,8 @@ class BrowserManager {
     }
 
     const page = await this.context.newPage();
-    await page.goto(SEL.BASE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    const response = await page.goto(SEL.BASE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await assertNotBlocked(page, response);
 
     try {
       await page.waitForSelector(SEL.ACCEPT_COOKIES, { timeout: 5000 });
@@ -86,7 +88,8 @@ class BrowserManager {
    * Significantly faster than re-launching the browser for each school.
    */
   async resetToBasePage(page) {
-    await page.goto(SEL.BASE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    const response = await page.goto(SEL.BASE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await assertNotBlocked(page, response);
     return page;
   }
 
