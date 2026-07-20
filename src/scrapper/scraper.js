@@ -12,7 +12,7 @@ mergeExclusive(modules);
 
 module.exports = {
   ...comboNavigation,
-  ...Mapnavigation,
+  ...mapNavigation,
   ...subjects,
   ...books,
 };
