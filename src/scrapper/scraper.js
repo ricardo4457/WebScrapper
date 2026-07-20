@@ -6,7 +6,7 @@ const subjects = require("./subjects");
 const books = require("./books");
 const { mergeExclusive } = require("../utils/MergeExclusive");
 
-const modules = { comboNavigation, Mapnavigation, subjects, books };
+const modules = { comboNavigation, mapNavigation, subjects, books };
 
 mergeExclusive(modules);
 
