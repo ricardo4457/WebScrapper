@@ -1,10 +1,11 @@
-'use strict';
+"use strict";
 
-const SEL = require('../selectors');
+const SEL = require("../selectors");
+const { humanDelay } = require("../humanization");
 
 /** Escapes special regex characters. */
 function escapeRegExp(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**
@@ -17,11 +18,13 @@ async function getOptions(page, buttonSelector, listSelector) {
   await button.click(); // auto-waits: visible, stable, actionable, enabled
   await page.waitForSelector(SEL.optionInList(listSelector), { timeout: 8000 });
 
-  const rawOptions = await page.locator(SEL.optionInList(listSelector)).allTextContents();
-  const options = rawOptions.map(t => t.trim()).filter(Boolean);
+  const rawOptions = await page
+    .locator(SEL.optionInList(listSelector))
+    .allTextContents();
+  const options = rawOptions.map((t) => t.trim()).filter(Boolean);
 
-  await page.keyboard.press('Escape');
-  await list.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+  await page.keyboard.press("Escape");
+  await list.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
 
   return options;
 }
@@ -37,12 +40,16 @@ async function pickOption(page, buttonSelector, listSelector, text) {
   await page.waitForSelector(SEL.optionInList(listSelector), { timeout: 8000 });
 
   const exactMatch = new RegExp(`^\\s*${escapeRegExp(text)}\\s*$`);
-  const option = page.locator(SEL.optionInList(listSelector), { hasText: exactMatch });
+  const option = page.locator(SEL.optionInList(listSelector), {
+    hasText: exactMatch,
+  });
 
   const count = await option.count();
   if (count === 0) {
-    await page.keyboard.press('Escape');
-    throw new Error(`pickOption: option not found -> "${text}" (${buttonSelector})`);
+    await page.keyboard.press("Escape");
+    throw new Error(
+      `pickOption: option not found -> "${text}" (${buttonSelector})`,
+    );
   }
 
   await option.first().click();
@@ -50,10 +57,13 @@ async function pickOption(page, buttonSelector, listSelector, text) {
   // Most dropdowns close themselves after picking an option; confirm
   // that instead of assuming it, and only fall back to Escape if not.
   try {
-    await list.waitFor({ state: 'hidden', timeout: 5000 });
+    await list.waitFor({ state: "hidden", timeout: 5000 });
   } catch {
-    await page.keyboard.press('Escape');
+    await page.keyboard.press("Escape");
   }
+
+  // Mimic human interaction with a random delay.
+  await humanDelay(200, 600);
 }
 
 /**
@@ -62,11 +72,11 @@ async function pickOption(page, buttonSelector, listSelector, text) {
  */
 async function selectYear(page, year) {
   if (!year) {
-    throw new Error('selectYear: year is required.');
+    throw new Error("selectYear: year is required.");
   }
 
-  const escaped = year.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pattern = new RegExp(`^${escaped.replace(/\s+/g, '\\s*')}$`);
+  const escaped = year.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`^${escaped.replace(/\s+/g, "\\s*")}$`);
 
   await page.getByText(pattern).click();
 }
@@ -76,27 +86,42 @@ async function selectYear(page, year) {
 async function selectTeachingType(page, teachingType) {
   if (!teachingType) return;
 
-  const isVisible = await page.isVisible(SEL.TEACHING_TYPE_WRAPPER).catch(() => false);
+  const isVisible = await page
+    .isVisible(SEL.TEACHING_TYPE_WRAPPER)
+    .catch(() => false);
   if (!isVisible) return;
 
-  await pickOption(page, SEL.TEACHING_TYPE_COMBO, SEL.TEACHING_TYPE_LISTBOX, teachingType);
+  await pickOption(
+    page,
+    SEL.TEACHING_TYPE_COMBO,
+    SEL.TEACHING_TYPE_LISTBOX,
+    teachingType,
+  );
 }
 
 /** Wrapper to select both year and cycle/teaching type. */
-async function selectYearAndCycle(page, { yearValue, yearLabel, teachingType } = {}) {
+async function selectYearAndCycle(
+  page,
+  { yearValue, yearLabel, teachingType } = {},
+) {
   const resolvedYear = yearValue || yearLabel;
 
   await selectYear(page, resolvedYear);
   await selectTeachingType(page, teachingType);
 
-  await page.waitForSelector(SEL.DISTRICT_COMBO, { state: 'visible', timeout: 10000 });
+  await page.waitForSelector(SEL.DISTRICT_COMBO, {
+    state: "visible",
+    timeout: 10000,
+  });
 }
 
 /**
  * Returns the available teaching cycles.
  */
 async function discoverTeachingTypes(page) {
-  const isVisible = await page.isVisible(SEL.TEACHING_TYPE_WRAPPER).catch(() => false);
+  const isVisible = await page
+    .isVisible(SEL.TEACHING_TYPE_WRAPPER)
+    .catch(() => false);
   if (!isVisible) return [];
   return getOptions(page, SEL.TEACHING_TYPE_COMBO, SEL.TEACHING_TYPE_LISTBOX);
 }
