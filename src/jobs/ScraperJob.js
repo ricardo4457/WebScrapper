@@ -3,11 +3,10 @@
 const StrategyRunner = require("../runner/StrategyRunner");
 
 class ScraperJob {
-  /**
-   * Main entry point for the BullMQ Worker.
-   * Runs the strategy and returns the result - the callback to Laravel
-   * is handled in the JobRunner, within the worker.on("completed"/"failed") events.
-   */
+/**
+ * Runs the scraping strategy.
+ * Callback handling is done by the JobRunner.
+ */
   async perform(job) {
     const { strategy: strategyName, ...rest } = job.data;
 
@@ -16,8 +15,18 @@ class ScraperJob {
     );
     console.log(`[Worker] Job data: ${JSON.stringify(job.data)}`);
 
-    await job.updateProgress(10);
-    const results = await StrategyRunner.run(job.data);
+    await job.updateProgress(0);
+
+    const results = await StrategyRunner.run(job.data, {
+      onProgress: async (completed, total) => {
+        const percent = total > 0 ? Math.round((completed / total) * 100) : 100;
+        await job.updateProgress(percent);
+        console.log(
+          `[Worker] Job ${job.id} progress: ${completed}/${total} (${percent}%)`,
+        );
+      },
+    });
+
     await job.updateProgress(100);
 
     return results;
