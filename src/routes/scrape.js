@@ -3,6 +3,47 @@
 const express = require("express");
 const router = express.Router();
 const scrapeQueue = require("../queue/ScrapeQueue");
+const { isValidStrategy, STRATEGY_NAMES } = require("../strategies/StrategyFactory");
+
+/**
+ * Sanity-checks only the fields the /scrape endpoint itself depends on to be
+ * able to respond to the caller. Everything else (year, district, city,
+ * school, schools...) is strategy-specific and is already validated by the
+ * corresponding Strategy constructor inside the worker (see ScrapeTask.js) -
+ * duplicating that here would just create a second source of truth.
+ *
+ * callback_url/run_token are special: if they are missing or malformed,
+ * ScrapeCallback.send() silently no-ops (or fails past the worker's
+ * try/catch), so the caller would never learn the job failed. That case
+ * can't be caught later - it has to be rejected synchronously, here.
+ */
+function validateScrapeRequest(body) {
+  const errors = [];
+
+  if (!body.strategy || typeof body.strategy !== "string") {
+    errors.push("'strategy' is required.");
+  } else if (!isValidStrategy(body.strategy)) {
+    errors.push(
+      `Unknown 'strategy' value '${body.strategy}'. Expected one of: ${STRATEGY_NAMES.join(", ")}.`,
+    );
+  }
+
+  if (!body.callback_url || typeof body.callback_url !== "string") {
+    errors.push("'callback_url' is required.");
+  } else {
+    try {
+      new URL(body.callback_url);
+    } catch {
+      errors.push("'callback_url' must be a valid URL.");
+    }
+  }
+
+  if (!body.run_token || typeof body.run_token !== "string") {
+    errors.push("'run_token' is required.");
+  }
+
+  return errors;
+}
 
 router.post("/", async (req, res) => {
   try {
@@ -17,6 +58,14 @@ router.post("/", async (req, res) => {
       callback_url,
       run_token,
     } = req.body;
+
+    const validationErrors = validateScrapeRequest(req.body);
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
+        error: "Invalid scrape request.",
+        details: validationErrors,
+      });
+    }
 
     // We pass 'scrape-job' as the name, the data payload, and the options
     const job = await scrapeQueue.add(
