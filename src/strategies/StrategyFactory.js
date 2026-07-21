@@ -2,14 +2,15 @@
 
 const SingleSchoolStrategy = require("./implementations/SingleSchoolStrategy");
 const SingleSchoolStrategyTooltip = require("./implementations/SingleSchoolStrategyTooltip");
+const FullDistrictStrategy = require("./implementations/FullDistrictStrategy");
 
 /**
  * Maps the strategy name received by the API to the class that creates its plan.
  */
 const STRATEGIES = Object.freeze({
   single_school: SingleSchoolStrategy,
- single_school_tooltip: SingleSchoolStrategyTooltip,
-
+  single_school_tooltip: SingleSchoolStrategyTooltip,
+  full_district: FullDistrictStrategy,
 });
 
 /**
@@ -25,6 +26,12 @@ function createStrategy(name, params = {}) {
   return new Strategy(params);
 }
 
+function isValidStrategy(name) {
+  return Object.prototype.hasOwnProperty.call(STRATEGIES, name);
+}
+
 module.exports = {
   createStrategy,
+  isValidStrategy,
+  STRATEGY_NAMES: Object.keys(STRATEGIES),
 };
