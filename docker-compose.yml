@@ -48,7 +48,7 @@ services:
   scraper-worker:
     build: .
     container_name: scraper-worker
-    command: ["node", "src/runner/jobRunner.js"]
+    command: ["node", "src/runner/JobRunner.js"]
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
@@ -69,11 +69,6 @@ services:
       - scraper-network
     depends_on:
       - redis
-    deploy:
-      resources:
-        limits:
-          memory: 1.5g
-          cpus: '1.5'
 
 networks:
   scraper-network:
