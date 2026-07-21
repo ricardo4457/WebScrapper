@@ -10,7 +10,6 @@ class StrategyRunner {
   static async run(input) {
     const { strategy: strategyName, ...params } = input;
     const strategy = createStrategy(strategyName, params);
-    const tasks = strategy.getTasks();
     const results = [];
     const browserManager = new BrowserManager();
 
@@ -19,6 +18,14 @@ class StrategyRunner {
 
       // Reuse the page between tasks.
       let page = await browserManager.openBasePage();
+
+      // getTasks() must run after the page exists, not before launch()
+      // above: discovery-based strategies (e.g. FullDistrictStrategy)
+      // need a live page to walk the district/city/school combos and
+      // build their task list. Fixed strategies just ignore the page
+      // argument. await works either way, whether getTasks() returns a
+      // Promise or a plain array.
+      const tasks = await strategy.getTasks(page);
 
       for (let i = 0; i < tasks.length; i++) {
         const task = tasks[i];
