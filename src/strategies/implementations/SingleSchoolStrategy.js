@@ -14,7 +14,8 @@ class SingleSchoolStrategy {
 
   /**
    * Runs the scraping flow for a single school.
-   * Returns the raw scraped books.
+   * Returns the raw scraped books. Third param exists only so
+   * StrategyRunner can call every strategy the same way 
    */
   async execute(page, task) {
     await scraper.selectYearAndCycle(page, {
@@ -30,5 +31,6 @@ class SingleSchoolStrategy {
     return scraper.extractBooks(page);
   }
 }
+
 
 module.exports = SingleSchoolStrategy;

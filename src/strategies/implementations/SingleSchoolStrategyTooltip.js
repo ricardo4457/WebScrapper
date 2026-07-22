@@ -19,7 +19,7 @@ class SingleSchoolStrategyTooltip {
   /**
    * Returns the raw scraped books.
    */
-  async execute(page, task) {
+  async execute(page, task, _opts) {
     await scraper.selectYearAndCycle(page, {
       yearLabel: task.year,
       teachingType: task.teaching_cycle,
