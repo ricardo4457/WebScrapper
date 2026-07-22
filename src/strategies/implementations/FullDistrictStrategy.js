@@ -25,10 +25,10 @@ class FullDistrictStrategy {
     this.tasks = null;
   }
 
-/**
- * Navigates through the available cities and schools to build
- * the list of scraping tasks.
- */
+  /**
+   * Navigates through the available cities and schools to build
+   * the list of scraping tasks.
+   */
   async getTasks(page) {
     if (this.tasks) {
       return [...this.tasks];
@@ -50,11 +50,11 @@ class FullDistrictStrategy {
 
     const cities = await scraper.discoverCities(page);
     const tasks = [];
-// Retrieve all schools for the current city.
+    // Retrieve all schools for the current city.
     for (const city of cities) {
       await scraper.selectCity(page, city);
       await assertNotBlocked(page);
-// Return to the homepage before starting the scraping process.
+      // Return to the homepage before starting the scraping process.
       const schools = await scraper.discoverSchools(page);
       for (const school of schools) {
         tasks.push(
@@ -83,8 +83,8 @@ class FullDistrictStrategy {
     return [...this.tasks];
   }
 
-// Try to reuse the current navigation when scraping
-// another school in the same city.
+  // Try to reuse the current navigation when scraping
+  // another school in the same city.
   async execute(page, task, { sameLocation = false } = {}) {
     if (sameLocation) {
       try {
