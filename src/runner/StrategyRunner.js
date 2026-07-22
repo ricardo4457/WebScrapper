@@ -5,23 +5,50 @@ const { BrowserManager } = require("../scrapper/browser");
 const bookPayload = require("../payloads/BookPayload");
 const { humanDelay } = require("../scrapper/humanization");
 const { BlockDetectedError } = require("../scrapper/blockDetection");
+const {
+  partitionTasksIntoLanes,
+  locationKey,
+} = require("../strategies/ScrapeTask");
+
+// Default number of parallel BrowserContexts.
+const DEFAULT_CONCURRENCY = 2;
+
+// Upper limit to avoid excessive simultaneous requests 
+const MAX_CONCURRENCY = 4;
 
 class StrategyRunner {
   /**
-   * Runs a scraping strategy.
+   * Executes the selected scraping strategy.
+   *
+   * Creates the browser, discovers the tasks to execute, distributes them
+   * across multiple execution lanes, and aggregates all results.
+   *
+   * Each lane runs in its own BrowserContext while sharing the same browser
+   * process for better performance.
+   *
    */
-  static async run(input, { onProgress } = {}) {
-    const { strategy: strategyName, ...params } = input;
+  static async run(input, { onProgress, concurrency } = {}) {
+    const {
+      strategy: strategyName,
+      concurrency: requestedConcurrency,
+      ...params
+    } = input;
     const strategy = createStrategy(strategyName, params);
-    const results = [];
     const browserManager = new BrowserManager();
+    const resolvedConcurrency = concurrency || requestedConcurrency;
+
+    // Shared state between all execution lanes.  
+    const state = {
+      results: [],
+      blocked: null,
+    };
 
     const reportProgress = async (total) => {
       if (!onProgress) return;
       try {
-        await onProgress(results.length, total);
+        await onProgress(state.results.length, total);
       } catch (progressError) {
-        // Ignore progress callback failures.
+        // Progress updates should never interrupt the scraping process.
         console.error(
           `[StrategyRunner] onProgress callback failed: ${progressError.message}`,
         );
@@ -29,54 +56,134 @@ class StrategyRunner {
     };
 
     try {
+      // Start Browser
       await browserManager.launch();
 
-      // Reuse the page between tasks.
-      let page = await browserManager.openBasePage();
+      // Task discovery uses a temporary page that is discarded once all tasks
+      // have been collected.
+      const discoveryPage = await browserManager.openBasePage();
+      const tasks = await strategy.getTasks(discoveryPage);
+      await discoveryPage.close().catch(() => {});
 
-      // Generate tasks after opening the browser.
-      const tasks = await strategy.getTasks(page);
       await reportProgress(tasks.length);
 
-      for (let i = 0; i < tasks.length; i++) {
-        const task = tasks[i];
+      if (tasks.length === 0) {
+        return state.results;
+      }
 
-        if (i > 0) {
-          // Add a random delay between tasks.
-          await humanDelay(800, 2000);
-          await browserManager.resetToBasePage(page);
+      const laneCount = Math.max(
+        1,
+        Math.min(
+          resolvedConcurrency || DEFAULT_CONCURRENCY,
+          MAX_CONCURRENCY,
+          tasks.length,
+        ),
+      );
+
+      // Keep tasks from the same location in the same lane.
+      // This allows consecutive tasks to reuse the current navigation state
+      // instead of restarting from the homepage.
+      const lanes = partitionTasksIntoLanes(tasks, laneCount);
+
+      console.log(
+        `[StrategyRunner] Running ${tasks.length} task(s) across ${lanes.length} lane(s) ` +
+          `(sizes: ${lanes.map((lane) => lane.length).join(", ")}).`,
+      );
+
+      await Promise.all(
+        lanes.map((laneTasks) =>
+          StrategyRunner._runLane(laneTasks, {
+            strategy,
+            browserManager,
+            state,
+            totalTasks: tasks.length,
+            reportProgress,
+          }),
+        ),
+      );
+
+      return state.results;
+    } finally {
+      await browserManager.close();
+    }
+  }
+
+  /**
+   * Executes all tasks assigned to a single lane.
+   *
+   * Each lane owns its own BrowserContext and processes tasks sequentially,
+   * while multiple lanes run concurrently.
+   *
+   * When consecutive tasks belong to the same location, navigation can be
+   * partially reused to reduce unnecessary page transitions.
+   */
+  static async _runLane(
+    laneTasks,
+    { strategy, browserManager, state, totalTasks, reportProgress },
+  ) {
+    const context = await browserManager.newContext();
+    let page = await browserManager.openPageInContext(context);
+    let previousTask = null;
+
+    // Marks all remaining tasks in this lane as aborted after block detection.
+    const abortRemaining = (fromIndex, reason) => {
+      for (const remainingTask of laneTasks.slice(fromIndex)) {
+        state.results.push({
+          school: {
+            name: remainingTask.school,
+            district: remainingTask.district,
+            city: remainingTask.city,
+          },
+          error: `Batch aborted due to site blocking: ${reason}`,
+          items: [],
+        });
+      }
+    };
+
+    try {
+      for (let i = 0; i < laneTasks.length; i++) {
+        // Stop processing new tasks if another lane has already detected blocking.
+        if (state.blocked) {
+          abortRemaining(i, state.blocked);
+          await reportProgress(totalTasks);
+          break;
         }
 
+        const task = laneTasks[i];
+
+        const sameLocation =
+          Boolean(previousTask) &&
+          locationKey(previousTask) === locationKey(task);
+        // Consecutive tasks from the same location can reuse the current navigation.
+        if (i > 0) {
+          // Small randomized delay between tasks to simulate human behaviour.
+          await humanDelay(800, 2000);
+          if (!sameLocation) {
+            // Reset to the initial page only when switching to a different location.
+            await browserManager.resetToBasePage(page);
+          }
+        }
+
+        // Convert the scraped books into the format expected by Laravel.
         try {
-          // Build the standard payload from the scraped books.
-          const books = await strategy.execute(page, task);
-          results.push(bookPayload.buildImportPayload(task, books));
-          await reportProgress(tasks.length);
+          const books = await strategy.execute(page, task, { sameLocation });
+          state.results.push(bookPayload.buildImportPayload(task, books));
+          previousTask = task;
+          await reportProgress(totalTasks);
         } catch (error) {
           if (error instanceof BlockDetectedError) {
-            // Stop processing if the site blocks the scraper.
             console.error(
               `[StrategyRunner] Block detected, aborting remaining tasks: ${error.reason}`,
             );
-
-            const remainingTasks = tasks.slice(i);
-            for (const remainingTask of remainingTasks) {
-              results.push({
-                school: {
-                  name: remainingTask.school,
-                  district: remainingTask.district,
-                  city: remainingTask.city,
-                },
-                error: `Batch aborted due to site blocking: ${error.reason}`,
-                items: [],
-              });
-            }
-            await reportProgress(tasks.length);
+            // Stop all remaining work once the website starts blocking requests.
+            state.blocked = error.reason;
+            abortRemaining(i, error.reason);
+            await reportProgress(totalTasks);
             break;
           }
 
-          // Continue with the next task.
-          results.push({
+          // Continue processing the remaining tasks in this lane if one fails.
+          state.results.push({
             school: {
               name: task.school,
               district: task.district,
@@ -85,43 +192,34 @@ class StrategyRunner {
             error: error.message,
             items: [],
           });
-          await reportProgress(tasks.length);
+          await reportProgress(totalTasks);
 
-          // Recreate the page if it becomes unusable.
+          // Page is about to be recreated at BASE_URL - the next task must
+          // do full navigation regardless of city, so forget previousTask.
+          previousTask = null;
+
+          // Record the failure and continue processing the remaining tasks.
           try {
             await page.close().catch(() => {});
-            page = await browserManager.openBasePage();
+            page = await browserManager.openPageInContext(context);
           } catch (recreateError) {
             if (recreateError instanceof BlockDetectedError) {
-              // Stop processing if the site blocks page recreation.
               console.error(
                 `[StrategyRunner] Block detected while recreating page, aborting remaining tasks: ${recreateError.reason}`,
               );
-
-              const remainingTasks = tasks.slice(i + 1);
-              for (const remainingTask of remainingTasks) {
-                results.push({
-                  school: {
-                    name: remainingTask.school,
-                    district: remainingTask.district,
-                    city: remainingTask.city,
-                  },
-                  error: `Batch aborted due to site blocking: ${recreateError.reason}`,
-                  items: [],
-                });
-              }
-              await reportProgress(tasks.length);
+              state.blocked = recreateError.reason;
+              abortRemaining(i + 1, recreateError.reason);
+              await reportProgress(totalTasks);
               break;
             }
-            // Let the next task handle the page error.
+            // Let the next task's own try/catch handle whatever's wrong with the page.
           }
         }
       }
 
       await page.close().catch(() => {});
-      return results;
     } finally {
-      await browserManager.close();
+      await context.close().catch(() => {});
     }
   }
 }
