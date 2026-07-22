@@ -106,6 +106,65 @@ function uniqueTasks(tasks) {
   });
 }
 
+/**
+ * Identifies which combo-navigation "location" a task belongs to (everything
+ * before the school combo: year/cycle/district/city). Two tasks with the
+ * same key can skip re-selecting year/cycle/district/city between them.
+ */
+function locationKey(task) {
+  return JSON.stringify([
+    task.year,
+    task.teaching_cycle,
+    task.district,
+    task.city,
+  ]);
+}
+
+/**
+ * Groups tasks that share a location key next to each other, keeping each
+ * group's first-seen relative order (Map preserves insertion order). Used
+ * so the runner can skip re-navigating year/district/city for consecutive
+ * tasks in the same city, even if a strategy didn't already emit them that
+ * way.
+ */
+function sortTasksByLocation(tasks) {
+  const groups = new Map();
+  for (const task of tasks) {
+    const key = locationKey(task);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(task);
+  }
+  return [...groups.values()].flat();
+}
+
+/**
+ * Splits tasks into `laneCount` lanes for concurrent execution. Tasks are
+ * grouped by location first and whole groups are handed to lanes (largest
+ * group first, always to the currently-smallest lane) so:
+ *  - a city's schools are never split across two lanes, which would defeat
+ *    the same-location nav-skip optimization within a lane;
+ *  - lane sizes stay roughly balanced even when city sizes vary a lot.
+ * Empty lanes are dropped (e.g. laneCount > number of distinct locations).
+ */
+function partitionTasksIntoLanes(tasks, laneCount) {
+  const groups = new Map();
+  for (const task of tasks) {
+    const key = locationKey(task);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(task);
+  }
+
+  const lanes = Array.from({ length: Math.max(1, laneCount) }, () => []);
+  const sortedGroups = [...groups.values()].sort((a, b) => b.length - a.length);
+
+  for (const group of sortedGroups) {
+    const smallestLane = lanes.reduce((min, lane) => (lane.length < min.length ? lane : min));
+    smallestLane.push(...group);
+  }
+
+  return lanes.filter(lane => lane.length > 0);
+}
+
 // Clean CommonJS export of helper functions
 module.exports = {
   createScrapeTask,
@@ -113,6 +172,9 @@ module.exports = {
   createYearSelection,
   createTaskKey,
   uniqueTasks,
+  locationKey,
+  sortTasksByLocation,
+  partitionTasksIntoLanes,
   requireObject,
   requireNonEmptyArray,
   requireText,
