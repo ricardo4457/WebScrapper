@@ -1,44 +1,41 @@
 "use strict";
 
-const { createScrapeTask, createYearSelection, requireText, uniqueTasks } = require("../ScrapeTask");
+const {
+  createScrapeTask,
+  createYearSelection,
+  requireText,
+  uniqueTasks,
+} = require("../ScrapeTask");
 const scraper = require("../../scrapper/scraper");
 const SEL = require("../../scrapper/selectors");
-const { assertNotBlocked } = require("../../scrapper/blockDetection");
+const {
+  assertNotBlocked,
+  BlockDetectedError,
+} = require("../../scrapper/blockDetection");
 
 /**
- * Discovers every {city, school} pair in a district live, by walking the
- * wook.pt combos, then runs the same single-school flow for each.
- *
- * getTasks() is async and needs an already-open Playwright page —
- * StrategyRunner launches the browser and opens the base page before
- * calling getTasks(page), then reuses that same page for execute(). This
- * replaces the earlier design that required the caller to already know
- * and pass in the full {city, school} list.
- *
- * Expected params:
- *   {
- *     year: '4.º',
- *     teaching_cycle: 'Ensino Básico (1º Ciclo)', // optional
- *     district: 'Porto',
- *   }
+ * Discovers all schools in a district by navigating through the website
+ * and creates one scraping task for each school found.
  */
 class FullDistrictStrategy {
   constructor(params = {}) {
     this.yearSelection = createYearSelection(params, "params");
     this.district = requireText(params.district, "district");
-    this.tasks = null; // populated by getTasks(page), memoized after first call
+    // Stores discovered tasks to avoid repeating the discovery process.
+    this.tasks = null;
   }
 
-  /**
-   * Walks year/cycle -> district -> every city -> every school, building
-   * one task per {city, school} pair found. Must run before execute().
-   */
+/**
+ * Navigates through the available cities and schools to build
+ * the list of scraping tasks.
+ */
   async getTasks(page) {
     if (this.tasks) {
       return [...this.tasks];
     }
 
     if (!page) {
+      // Retrieve all cities available for the selected district.
       throw new Error(
         "FullDistrictStrategy.getTasks: a live page is required to discover cities/schools.",
       );
@@ -53,11 +50,11 @@ class FullDistrictStrategy {
 
     const cities = await scraper.discoverCities(page);
     const tasks = [];
-
+// Retrieve all schools for the current city.
     for (const city of cities) {
       await scraper.selectCity(page, city);
       await assertNotBlocked(page);
-
+// Return to the homepage before starting the scraping process.
       const schools = await scraper.discoverSchools(page);
       for (const school of schools) {
         tasks.push(
@@ -72,33 +69,39 @@ class FullDistrictStrategy {
       }
     }
 
-    // Discovery leaves the combos mid-selection; reset before execute()
-    // starts, same as the reset StrategyRunner does between tasks.
-    const response = await page.goto(SEL.BASE_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
+    // Remove duplicate tasks and cache the result.
+    const response = await page.goto(SEL.BASE_URL, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
+
+    await scraper.waitForLoadingToFinish(page);
+
     await assertNotBlocked(page, response);
 
     this.tasks = Object.freeze(uniqueTasks(tasks));
     return [...this.tasks];
   }
 
-  /**
-   * Identical flow to SingleSchoolStrategy — same combo navigation, one
-   * task at a time. StrategyRunner loops them, resets the page between
-   * schools, paces requests (humanDelay) and isolates/aborts on failure
-   * or block.
-   */
-  async execute(page, task) {
-    await scraper.selectYearAndCycle(page, {
-      yearLabel: task.year,
-      teachingType: task.teaching_cycle,
-    });
-    await scraper.selectDistrict(page, task.district);
-    await scraper.selectCity(page, task.city);
-    await scraper.selectSchool(page, task.school);
-    await scraper.selectAllSubjects(page);
-    await scraper.goToBooks(page);
-
-    return scraper.extractBooks(page);
+// Try to reuse the current navigation when scraping
+// another school in the same city.
+  async execute(page, task, { sameLocation = false } = {}) {
+    if (sameLocation) {
+      try {
+        await scraper.returnToSchoolSelection(page);
+        return await scraper.scrapeSchool(page, task);
+      } catch (fastPathError) {
+        // If the fast path fails, perform the full navigation instead.
+        if (fastPathError instanceof BlockDetectedError) throw fastPathError;
+        console.warn(
+          `[FullDistrictStrategy] Same-city fast path failed for "${task.school}" ` +
+            `(${fastPathError.message}). Falling back to full navigation.`,
+        );
+      }
+    }
+    await scraper.waitForLoadingToFinish(page);
+    await scraper.navigateToLocation(page, task);
+    return scraper.scrapeSchool(page, task);
   }
 }
 
