@@ -67,12 +67,7 @@ class BrowserManager {
     const context = await this.browser.newContext({
       viewport: null,
       locale: "pt-PT",
-      // Sem userAgent customizado: o Patchright já garante um fingerprint
-      // consistente com um Chrome real - sobrepor um UA à mão introduz uma
-      // inconsistência entre esse valor e os outros sinais do browser
-      // (client hints, versão do motor), que é precisamente o tipo de coisa
-      // que os WAFs detetam. Documentação do Patchright: "do NOT add custom
-      // browser headers or user_agent".
+
     });
     if (options.blockResources !== false) {
       await context.route("**/*", (route) => {
