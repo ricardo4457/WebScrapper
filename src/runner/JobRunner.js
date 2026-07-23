@@ -1,4 +1,4 @@
-const { Worker } = require("bullmq");
+const { Worker, UnrecoverableError } = require("bullmq");
 const redis = require("../config/redis");
 const ScraperJob = require("../jobs/ScraperJob");
 const scrapeCallback = require("../services/ScrapeCallback");
@@ -91,7 +91,18 @@ worker.on("completed", async (job, returnValue) => {
 });
 
 worker.on("failed", async (job, err) => {
-  console.error(` Job ${job.id} failed: ${err.message}`);
+
+  const maxAttempts = job.opts?.attempts ?? 1;
+  const isFinalAttempt = job.attemptsMade >= maxAttempts || err instanceof UnrecoverableError;
+
+  if (!isFinalAttempt) {
+    console.warn(
+      ` Job ${job.id} attempt ${job.attemptsMade}/${maxAttempts} failed: ${err.message} - retry pending, not notifying Laravel yet.`,
+    );
+    return;
+  }
+
+  console.error(` Job ${job.id} failed permanently after ${job.attemptsMade} attempt(s): ${err.message}`);
 
   const { callback_url, run_token } = job.data;
 
