@@ -48,10 +48,12 @@ services:
   scraper-worker:
     build: .
     container_name: scraper-worker
+    tty: true
     command: ["node", "src/runner/JobRunner.js"]
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - SCRAPER_HEADLESS=true
     # Permite ao container resolver host.docker.internal -> máquina host,
     # necessário para o callback do worker alcançar o Laravel a correr fora
     # do Docker (php artisan serve / Valet / Herd na porta 8000).

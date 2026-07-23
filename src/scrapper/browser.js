@@ -30,7 +30,7 @@ class BrowserManager {
    */
   async launch(options = {}) {
     this.browser = await chromium.launch({
-      headless: options.headless !== false,
+      headless: true,
       channel: "chrome",
       // args: [
       //   "--disable-blink-features=AutomationControlled",
@@ -67,7 +67,6 @@ class BrowserManager {
     const context = await this.browser.newContext({
       viewport: null,
       locale: "pt-PT",
-
     });
     if (options.blockResources !== false) {
       await context.route("**/*", (route) => {
@@ -78,7 +77,6 @@ class BrowserManager {
         return route.continue();
       });
     }
-    // Keep track of created contexts for later cleanup.
 
     this.contexts.push(context);
     return context;
