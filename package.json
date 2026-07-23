@@ -23,9 +23,8 @@
     "bullmq": "^5.80.1",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "mysql2": "^3.22.4",
     "p-limit": "^7.3.0",
-    "playwright": "^1.60.0"
+    "patchright": "^1.61.1"
   },
   "allowScripts": {
     "msgpackr-extract@3.0.4": true
