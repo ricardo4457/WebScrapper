@@ -1,6 +1,6 @@
 "use strict";
 
-const { chromium } = require("playwright");
+const { chromium } = require("patchright");
 const SEL = require("./selectors");
 const { assertNotBlocked } = require("./blockDetection");
 
@@ -31,15 +31,15 @@ class BrowserManager {
   async launch(options = {}) {
     this.browser = await chromium.launch({
       headless: options.headless !== false,
-      args: [
-        "--disable-blink-features=AutomationControlled",
-        // Reduces memory issues when running inside Docker.
-
-        "--disable-dev-shm-usage",
-        // Required by most Docker environments.
-
-        "--no-sandbox",
-      ],
+      channel: "chrome",
+      // args: [
+      //   "--disable-blink-features=AutomationControlled",
+      //   // Reduces memory issues when running inside Docker.
+      //   "--disable-dev-shm-usage",
+      //   // Required by most Docker environments.
+      //   "--no-sandbox",
+      // ],
+      // Patchright faz por trás este cod
     });
 
     return this.browser;
@@ -65,15 +65,15 @@ class BrowserManager {
     }
 
     const context = await this.browser.newContext({
-      viewport: { width: 1366, height: 900 },
+      viewport: null,
       locale: "pt-PT",
-      // Uses a common browser user agent.
-
-      userAgent:
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      // Sem userAgent customizado: o Patchright já garante um fingerprint
+      // consistente com um Chrome real - sobrepor um UA à mão introduz uma
+      // inconsistência entre esse valor e os outros sinais do browser
+      // (client hints, versão do motor), que é precisamente o tipo de coisa
+      // que os WAFs detetam. Documentação do Patchright: "do NOT add custom
+      // browser headers or user_agent".
     });
-    // Uses a common browser user agent.
     if (options.blockResources !== false) {
       await context.route("**/*", (route) => {
         const type = route.request().resourceType();
