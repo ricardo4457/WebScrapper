@@ -1,5 +1,6 @@
 services:
-  # Base de dados Redis (Fila)
+
+  # Redis queue storage used by the scraper jobs.
   redis:
     image: redis:alpine
     container_name: redis
@@ -18,7 +19,7 @@ services:
         limits:
           memory: 600m
 
-  # Painel de Controlo do Redis
+  # Redis monitoring interface.
   redis-insight:
     image: redis/redisinsight:latest
     container_name: redis-insight
@@ -29,7 +30,7 @@ services:
     depends_on:
       - redis
 
-  # A tua API Express
+  # API service responsible for creating scraper jobs.
   scraper-api:
     build: .
     container_name: scraper-api
@@ -44,7 +45,7 @@ services:
     depends_on:
       - redis
 
-  # O teu Worker dedicado (jobRunner) - corre Playwright, precisa de mais RAM/CPU e /dev/shm maior
+  # Worker service responsible for executing scraping tasks.
   scraper-worker:
     build: .
     container_name: scraper-worker
@@ -53,28 +54,46 @@ services:
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - SCRAPER_HEADLESS=true
-    # Permite ao container resolver host.docker.internal -> máquina host,
-    # necessário para o callback do worker alcançar o Laravel a correr fora
-    # do Docker (php artisan serve / Valet / Herd na porta 8000).
-    # host-gateway funciona em Linux (Docker 20.10+); Mac/Windows já
-    # resolvem host.docker.internal nativamente mesmo sem isto, mas fica
-    # explícito e sem custo.
+
+      # Runs browser in visible mode.
+      - SCRAPER_HEADLESS=false
+
+      # Browser engine used by the scraper.
+      - SCRAPER_ENGINE=camoufox
+
+      # Required to run Firefox inside Docker without sandbox issues.
+      - MOZ_DISABLE_CONTENT_SANDBOX=1
+
+    # Allows communication with applications running on the host machine.
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+    # More shared memory for browser processes.
     shm_size: '1gb'
+
+    # Improves browser stability.
     ipc: host
+
     volumes:
+      # Project source code.
       - .:/usr/src/app
-      - /usr/src/app/node_modules # Prevents local node_modules from overwriting container modules
+
+      # Keeps container dependencies isolated.
+      - /usr/src/app/node_modules
+
     networks:
       - scraper-network
+
     depends_on:
       - redis
 
+
+# Network shared between application services.
 networks:
   scraper-network:
     driver: bridge
 
+
+# Persistent Redis storage.
 volumes:
   redis-data:
