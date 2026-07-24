@@ -93,6 +93,7 @@ class FullDistrictStrategy {
       } catch (fastPathError) {
         // If the fast path fails, perform the full navigation instead.
         if (fastPathError instanceof BlockDetectedError) throw fastPathError;
+        console.error("[DEBUG] Fast path failed with error:", fastPathError);
         console.warn(
           `[FullDistrictStrategy] Same-city fast path failed for "${task.school}" ` +
             `(${fastPathError.message}). Falling back to full navigation.`,
