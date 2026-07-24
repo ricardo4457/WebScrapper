@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-if [ "$SCRAPER_HEADLESS" = "true" ]; then
+if [ "$SCRAPER_HEADLESS" != "true" ]; then
   echo "[entrypoint] A arrancar Xvfb no display :99..."
   Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset &
   XVFB_PID=$!
