@@ -3,6 +3,8 @@ const comboNavigation = require("./comboNavigation");
 const mapNavigation = require("./Mapnavigation");
 const subjects = require("../subjects");
 const books = require("../books");
+const SEL = require("../selectors");
+
 
 
 async function returnToSchoolSelection(page) {
