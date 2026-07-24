@@ -1,63 +1,103 @@
 "use strict";
 
-const { chromium } = require("patchright");
 const SEL = require("./selectors");
 const { assertNotBlocked } = require("./blockDetection");
 
 /**
- * Creates a delay between actions.
- */ function sleep(ms) {
+ * Creates a controlled delay between asynchronous operations.
+ * Useful for simulating natural interaction timing and avoiding excessive requests.
+ */
+function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Resource types to block for faster loading; excludes navigation-critical
-// resources like documents, scripts, and fetch/XHR requests.
+/**
+ * Waits for the website loading indicator to disappear before continuing execution.
+ * If the indicator does not appear, the flow continues without interruption.
+ */
+async function waitForLoadingToFinish(page) {
+  const loadingModal = page.locator(SEL.LOADING_MODAL);
+  await loadingModal
+    .waitFor({ state: "hidden", timeout: 15000 })
+    .catch(() => {});
+}
+
+/**
+ * Defines resource types that are not required for scraping.
+ * Blocking these resources reduces page load time and network usage while keeping
+ * the required application resources available.
+ */
 const BLOCKED_RESOURCE_TYPES = new Set(["image", "font", "media"]);
 
 /**
- * Manages the Playwright browser lifecycle.
- * Handles browser creation, contexts and page management.
+ * Manages the browser lifecycle used by the scraper.
+ *
+ * Responsible for:
+ * - Starting the selected browser engine.
+ * - Creating isolated browser contexts.
+ * - Managing opened pages.
+ * - Cleaning resources after execution.
+ *
+ * Supports multiple engines configured through SCRAPER_ENGINE:
+ * - chromium: Uses Chrome through Patchright.
+ * - camoufox: Uses a modified Firefox binary through camoufox-js.
  */
 class BrowserManager {
   constructor() {
     this.browser = null;
-    // Stores all created contexts so they can be closed together.
+
+    // Keeps references to created contexts to guarantee proper cleanup.
     this.contexts = [];
+
+    this.engine = null;
   }
+
   /**
-   * Launches a Chromium browser instance.
-   * Headless mode is enabled by default.
+   * Starts the browser instance using the configured engine.
+   * Headless execution is enabled by default unless explicitly disabled.
    */
   async launch(options = {}) {
-    this.browser = await chromium.launch({
-      headless: true,
-      channel: "chrome",
-      // args: [
-      //   "--disable-blink-features=AutomationControlled",
-      //   // Reduces memory issues when running inside Docker.
-      //   "--disable-dev-shm-usage",
-      //   // Required by most Docker environments.
-      //   "--no-sandbox",
-      // ],
-      // Patchright faz por trás este cod
-    });
+    const headless =
+      options.headless !== undefined
+        ? options.headless
+        : process.env.SCRAPER_HEADLESS !== "false";
+
+    this.engine = options.engine || process.env.SCRAPER_ENGINE || "chromium";
+
+    if (this.engine === "camoufox") {
+      const { Camoufox } = require("camoufox-js");
+
+      this.browser = await Camoufox({
+        headless,
+        humanize: true,
+        geoip: true,
+      });
+
+      console.log(
+        `[BrowserManager] Camoufox (Firefox) lançado (headless: ${headless}).`,
+      );
+    } else {
+      const { chromium } = require("patchright");
+
+      this.browser = await chromium.launch({
+        headless,
+        channel: "chrome",
+        // Patchright applies the required browser modifications internally.
+      });
+
+      console.log(
+        `[BrowserManager] Chrome lançado via Patchright (headless: ${headless}).`,
+      );
+    }
 
     return this.browser;
   }
 
   /**
-   * Waits until the loading modal disappears.
-   */
-  async waitForLoadingToFinish(page) {
-    const loadingModal = page.locator(SEL.LOADING_MODAL);
-    await loadingModal
-      .waitFor({ state: "hidden", timeout: 15000 })
-      .catch(() => {}); // se nunca aparecer, não bloqueia o fluxo
-  }
-
-  /**
-   * Creates a new browser context.
-   * Each context has its own cookies and storage.
+   * Creates an isolated browser context.
+   *
+   * Each context maintains independent cookies, storage and session data,
+   * allowing multiple scraping executions without sharing state.
    */
   async newContext(options = {}) {
     if (!this.browser) {
@@ -68,74 +108,92 @@ class BrowserManager {
       viewport: null,
       locale: "pt-PT",
     });
+
+    // Reduces unnecessary network requests by blocking non-essential assets.
     if (options.blockResources !== false) {
       await context.route("**/*", (route) => {
         const type = route.request().resourceType();
+
         if (BLOCKED_RESOURCE_TYPES.has(type)) {
           return route.abort();
         }
+
         return route.continue();
       });
     }
 
     this.contexts.push(context);
+
     return context;
   }
 
   /**
-   * Opens the website in a new page.
+   * Opens a new page inside an existing browser context.
+   *
+   * Performs initial navigation, verifies possible blocking mechanisms,
+   * and handles cookie consent when required.
    */
   async openPageInContext(context) {
     const page = await context.newPage();
+
     const response = await page.goto(SEL.BASE_URL, {
       waitUntil: "domcontentloaded",
       timeout: 30000,
     });
 
-    // Verify that the request was not blocked.
+    // Ensures the scraper does not continue after anti-bot blocking.
     await assertNotBlocked(page, response);
 
     try {
-      // Accept cookies if the banner is displayed.
-
+      // Accepts the cookie banner when it is displayed on first access.
       await page.waitForSelector(SEL.ACCEPT_COOKIES, { timeout: 5000 });
       await page.click(SEL.ACCEPT_COOKIES);
     } catch {
-      // Cookie banner not found or already accepted.
+      // Cookie banner may not exist or could already be accepted.
     }
 
     return page;
   }
 
   /**
-   * Creates a new context and opens the base page.
+   * Creates a new browsing context and loads the initial website page.
    */
   async openBasePage(options = {}) {
     const context = await this.newContext(options);
+
     return this.openPageInContext(context);
   }
 
   /**
-   * Navigates back to the website homepage.
-   * Reusing the same page is faster than creating a new one.
+   * Returns an existing page to the initial website state.
+   *
+   * Reusing the same page avoids unnecessary browser initialization overhead
+   * and improves scraping performance.
    */
   async resetToBasePage(page) {
     const response = await page.goto(SEL.BASE_URL, {
       waitUntil: "domcontentloaded",
       timeout: 30000,
     });
+
     await assertNotBlocked(page, response);
+
     return page;
   }
 
   /**
-   * Closes all browser contexts and the browser instance.
+   * Releases all browser resources.
+   *
+   * Closes contexts first and then terminates the browser instance,
+   * preventing memory leaks during long scraping executions.
    */
   async close() {
     for (const context of this.contexts) {
       await context.close().catch(() => {});
     }
+
     this.contexts = [];
+
     if (this.browser) {
       await this.browser.close().catch(() => {});
       this.browser = null;
@@ -143,4 +201,8 @@ class BrowserManager {
   }
 }
 
-module.exports = { BrowserManager, sleep };
+module.exports = {
+  BrowserManager,
+  sleep,
+  waitForLoadingToFinish,
+};
