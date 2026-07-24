@@ -20,6 +20,11 @@ class ScrapeQueue {
     return await this.queue.add(name, data, options);
   }
 
+  async clearQueueOnStart() {
+    // Completely removes the queue and all its data from Redis
+    await taskQueue.obliterate({ force: true });
+    console.log("[BullMQ] Task queue obliterated/cleared on startup.");
+  }
   /**
    * Finds a job by its unique ID.
    */

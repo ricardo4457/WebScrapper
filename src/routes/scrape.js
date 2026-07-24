@@ -1,9 +1,12 @@
-'use strict';
+"use strict";
 
 const express = require("express");
 const router = express.Router();
 const scrapeQueue = require("../queue/ScrapeQueue");
-const { isValidStrategy, STRATEGY_NAMES } = require("../strategies/StrategyFactory");
+const {
+  isValidStrategy,
+  STRATEGY_NAMES,
+} = require("../strategies/StrategyFactory");
 
 /**
  * Sanity-checks only the fields the /scrape endpoint itself depends on to be
@@ -47,6 +50,8 @@ function validateScrapeRequest(body) {
 
 router.post("/", async (req, res) => {
   try {
+    ScrapeQueue.clearQueueOnStart();
+
     const {
       strategy,
       year,
@@ -54,7 +59,7 @@ router.post("/", async (req, res) => {
       district,
       city,
       school,
-      schools, 
+      schools,
       callback_url,
       run_token,
     } = req.body;
@@ -69,7 +74,7 @@ router.post("/", async (req, res) => {
 
     // We pass 'scrape-job' as the name, the data payload, and the options
     const job = await scrapeQueue.add(
-      "scrape-job", 
+      "scrape-job",
       {
         strategy,
         year,
@@ -79,20 +84,19 @@ router.post("/", async (req, res) => {
         school,
         schools,
         callback_url,
-        run_token, 
+        run_token,
       },
       {
         removeOnComplete: { count: 50 },
         removeOnFail: { count: 100 },
-      }
+      },
     );
 
     return res.status(202).json({
-      job_tokens: [job.id.toString()], 
-      jobs_total: 1,                    
+      job_tokens: [job.id.toString()],
+      jobs_total: 1,
       status: "queued",
     });
-
   } catch (error) {
     console.error(`[Router] Error queuing job: ${error.message}`);
     return res.status(500).json({
