@@ -75,7 +75,7 @@ class FullDistrictStrategy {
       timeout: 30000,
     });
 
-    await scraper.BrowserManager.waitForLoadingToFinish(page);
+    await scraper.waitForLoadingToFinish(page);
 
     await assertNotBlocked(page, response);
 
@@ -99,7 +99,7 @@ class FullDistrictStrategy {
         );
       }
     }
-    await scraper.BrowserManager.waitForLoadingToFinish(page);
+    await scraper.waitForLoadingToFinish(page);
     await scraper.navigateToLocation(page, task);
     return scraper.scrapeSchool(page, task);
   }
