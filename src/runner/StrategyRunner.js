@@ -5,6 +5,7 @@ const { BrowserManager } = require("../scrapper/browser");
 const bookPayload = require("../payloads/BookPayload");
 const { humanDelay } = require("../scrapper/humanization");
 const { BlockDetectedError } = require("../scrapper/blockDetection");
+const ResultBatchService = require("../services/ResultBatchService");
 const {
   partitionTasksIntoLanes,
   locationKey,
@@ -13,7 +14,7 @@ const {
 // Default number of parallel BrowserContexts.
 const DEFAULT_CONCURRENCY = 2;
 
-// Upper limit to avoid excessive simultaneous requests 
+// Upper limit to avoid excessive simultaneous requests
 const MAX_CONCURRENCY = 4;
 
 class StrategyRunner {
@@ -27,26 +28,41 @@ class StrategyRunner {
    * process for better performance.
    *
    */
-  static async run(input, { onProgress, concurrency } = {}) {
+  static async run(
+    input,
+    { onProgress, concurrency, jobToken, batchSize } = {},
+  ) {
     const {
       strategy: strategyName,
       concurrency: requestedConcurrency,
+      callback_url,
+      run_token,
       ...params
     } = input;
     const strategy = createStrategy(strategyName, params);
     const browserManager = new BrowserManager();
     const resolvedConcurrency = concurrency || requestedConcurrency;
 
-    // Shared state between all execution lanes.  
+    // Streams results to Laravel in batches instead of holding every school's
+    // books in memory for the whole run (see ResultBatchService).
+    const batchService = new ResultBatchService({
+      callbackUrl: callback_url,
+      runToken: run_token,
+      jobToken,
+      batchSize,
+    });
+
+    // Shared state between all execution lanes.
     const state = {
-      results: [],
+      completedCount: 0,
       blocked: null,
+      batchService,
     };
 
     const reportProgress = async (total) => {
       if (!onProgress) return;
       try {
-        await onProgress(state.results.length, total);
+        await onProgress(state.completedCount, total);
       } catch (progressError) {
         // Progress updates should never interrupt the scraping process.
         console.error(
@@ -68,7 +84,7 @@ class StrategyRunner {
       await reportProgress(tasks.length);
 
       if (tasks.length === 0) {
-        return state.results;
+        return { sentCount: 0, failedEntries: [] };
       }
 
       const laneCount = Math.max(
@@ -102,7 +118,13 @@ class StrategyRunner {
         ),
       );
 
-      return state.results;
+      // Send whatever is left in the buffer .
+      await batchService.flush("partial");
+
+      return {
+        sentCount: batchService.getSentCount(),
+        failedEntries: batchService.getFailedEntries(),
+      };
     } finally {
       await browserManager.close();
     }
@@ -126,9 +148,9 @@ class StrategyRunner {
     let previousTask = null;
 
     // Marks all remaining tasks in this lane as aborted after block detection.
-    const abortRemaining = (fromIndex, reason) => {
+    const abortRemaining = async (fromIndex, reason) => {
       for (const remainingTask of laneTasks.slice(fromIndex)) {
-        state.results.push({
+        const entry = {
           school: {
             name: remainingTask.school,
             district: remainingTask.district,
@@ -136,7 +158,9 @@ class StrategyRunner {
           },
           error: `Batch aborted due to site blocking: ${reason}`,
           items: [],
-        });
+        };
+        await state.batchService.add(entry, { isError: true });
+        state.completedCount++;
       }
     };
 
@@ -144,7 +168,7 @@ class StrategyRunner {
       for (let i = 0; i < laneTasks.length; i++) {
         // Stop processing new tasks if another lane has already detected blocking.
         if (state.blocked) {
-          abortRemaining(i, state.blocked);
+          await abortRemaining(i, state.blocked);
           await reportProgress(totalTasks);
           break;
         }
@@ -167,7 +191,9 @@ class StrategyRunner {
         // Convert the scraped books into the format expected by Laravel.
         try {
           const books = await strategy.execute(page, task, { sameLocation });
-          state.results.push(bookPayload.buildImportPayload(task, books));
+          const entry = bookPayload.buildImportPayload(task, books);
+          await state.batchService.add(entry);
+          state.completedCount++;
           previousTask = task;
           await reportProgress(totalTasks);
         } catch (error) {
@@ -177,13 +203,13 @@ class StrategyRunner {
             );
             // Stop all remaining work once the website starts blocking requests.
             state.blocked = error.reason;
-            abortRemaining(i, error.reason);
+            await abortRemaining(i, error.reason);
             await reportProgress(totalTasks);
             break;
           }
 
           // Continue processing the remaining tasks in this lane if one fails.
-          state.results.push({
+          const entry = {
             school: {
               name: task.school,
               district: task.district,
@@ -191,7 +217,9 @@ class StrategyRunner {
             },
             error: error.message,
             items: [],
-          });
+          };
+          await state.batchService.add(entry, { isError: true });
+          state.completedCount++;
           await reportProgress(totalTasks);
 
           // Page is about to be recreated at BASE_URL - the next task must
@@ -208,7 +236,7 @@ class StrategyRunner {
                 `[StrategyRunner] Block detected while recreating page, aborting remaining tasks: ${recreateError.reason}`,
               );
               state.blocked = recreateError.reason;
-              abortRemaining(i + 1, recreateError.reason);
+              await abortRemaining(i + 1, recreateError.reason);
               await reportProgress(totalTasks);
               break;
             }
