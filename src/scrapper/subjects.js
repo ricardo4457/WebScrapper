@@ -2,6 +2,7 @@
 
 const SEL = require("./selectors");
 const { humanDelay } = require("./humanization");
+const { waitForLoadingToFinish } = require("../scrapper/browser");
 
 /**
  * Select all available subjects.
@@ -9,12 +10,12 @@ const { humanDelay } = require("./humanization");
 async function selectAllSubjects(page) {
   const container = page.locator(SEL.SUBJECTS_CONTAINER);
   await container.scrollIntoViewIfNeeded();
-
   const labels = await container.locator(SEL.SUBJECTS_LABEL).all();
 
   for (const label of labels) {
     await label.scrollIntoViewIfNeeded();
     await label.click();
+    await waitForLoadingToFinish(page);
     // Mimic human interaction with a random delay.
     await humanDelay(150, 400);
   }
@@ -35,6 +36,7 @@ async function selectAllSubjectsSequential(page) {
   for (const label of labels) {
     await label.scrollIntoViewIfNeeded();
     try {
+      await waitForLoadingToFinish(page);
       await label.click({ force: true });
       selected++;
       await humanDelay(150, 400);
