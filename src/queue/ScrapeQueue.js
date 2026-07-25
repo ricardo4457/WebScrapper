@@ -8,7 +8,7 @@ class ScrapeQueue {
     this.queue = new Queue("book-scraper", {
       connection: redis,
       defaultJobOptions: {
-        attempts: 3,
+        attempts: 2,
         backoff: { type: "exponential", delay: 60000 },
         removeOnComplete: { age: 3600, count: 1000 },
         removeOnFail: { age: 86400 },
