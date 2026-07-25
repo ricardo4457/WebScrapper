@@ -45,6 +45,7 @@ worker.on("completed", async (job, returnValue) => {
         {
           status: "failed",
           job_token: job.id,
+          attempt: job.attemptsMade,
           books: [],
           final: true,
           error:
@@ -84,6 +85,7 @@ worker.on("completed", async (job, returnValue) => {
       {
         status: hasError ? "failed" : "completed",
         job_token: job.id,
+        attempt: job.attemptsMade,
         books: failedEntries,
         final: true,
         error: hasError
@@ -131,6 +133,7 @@ worker.on("failed", async (job, err) => {
       {
         status: "failed",
         job_token: job.id,
+        attempt: job.attemptsMade,
         books: [],
         final: true,
         error: err.message,

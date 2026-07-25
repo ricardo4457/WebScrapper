@@ -20,6 +20,7 @@ class ScraperJob {
 
     const summary = await StrategyRunner.run(job.data, {
       jobToken: job.id,
+      attempt: job.attemptsMade,
       onProgress: async (completed, total) => {
         const percent = total > 0 ? Math.round((completed / total) * 100) : 100;
         await job.updateProgress(percent);

@@ -16,11 +16,15 @@ class ResultBatchService {
     runToken,
     jobToken,
     batchSize = DEFAULT_BATCH_SIZE,
+    attempt = 0,
   }) {
     this.callbackUrl = callbackUrl;
     this.runToken = runToken;
     this.jobToken = jobToken;
     this.batchSize = batchSize > 0 ? batchSize : DEFAULT_BATCH_SIZE;
+    // BullMQ's attemptsMade for this job run. Lets Laravel tell apart
+    // batches from a superseded attempt (after a retry) from the current one.
+    this.attempt = attempt;
 
     this.buffer = [];
     // Kept separately (not cleared on flush) so the final callback can report
@@ -58,6 +62,7 @@ class ResultBatchService {
       {
         status,
         job_token: this.jobToken,
+        attempt: this.attempt,
         books: batch,
       },
       this.runToken,

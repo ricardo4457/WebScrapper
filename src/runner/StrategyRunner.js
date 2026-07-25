@@ -30,7 +30,7 @@ class StrategyRunner {
    */
   static async run(
     input,
-    { onProgress, concurrency, jobToken, batchSize } = {},
+    { onProgress, concurrency, jobToken, batchSize, attempt } = {},
   ) {
     const {
       strategy: strategyName,
@@ -50,6 +50,7 @@ class StrategyRunner {
       runToken: run_token,
       jobToken,
       batchSize,
+      attempt,
     });
 
     // Shared state between all execution lanes.
