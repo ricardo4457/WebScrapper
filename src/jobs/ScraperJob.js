@@ -3,10 +3,11 @@
 const StrategyRunner = require("../runner/StrategyRunner");
 
 class ScraperJob {
-/**
- * Runs the scraping strategy.
- * Callback handling is done by the JobRunner.
- */
+  /**
+   * Runs the scraping strategy.
+   * Results are streamed to Laravel progressively (see ResultBatchService),
+   * Returns a summary for JobRunner to build the final callback
+   */
   async perform(job) {
     const { strategy: strategyName, ...rest } = job.data;
 
@@ -17,7 +18,8 @@ class ScraperJob {
 
     await job.updateProgress(0);
 
-    const results = await StrategyRunner.run(job.data, {
+    const summary = await StrategyRunner.run(job.data, {
+      jobToken: job.id,
       onProgress: async (completed, total) => {
         const percent = total > 0 ? Math.round((completed / total) * 100) : 100;
         await job.updateProgress(percent);
@@ -29,7 +31,7 @@ class ScraperJob {
 
     await job.updateProgress(100);
 
-    return results;
+    return summary;
   }
 }
 
