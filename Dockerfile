@@ -35,7 +35,8 @@ RUN --mount=type=cache,target=/root/.cache/camoufox-fetch-cache \
 # Copy application source code.
 COPY . .
 
-# Ensure the entrypoint script works correctly inside Linux.
+# Ensure the entrypoint script works correctly inside Linux
+# (strips CRLF line endings and sets the exec bit).
 RUN sed -i 's/\r$//' src/config/entrypoint.sh && chmod +x src/config/entrypoint.sh
 
 # Virtual display used for headed browser execution.
@@ -44,7 +45,10 @@ ENV DISPLAY=:99
 EXPOSE 3000
 
 # Container startup script.
-ENTRYPOINT ["./src/config/entrypoint.sh"]
+# Invoked via bash explicitly (not "./src/config/entrypoint.sh") so the
+# container doesn't depend on the shebang or the exec bit surviving future
+# COPY/git-checkout steps on a Windows host.
+ENTRYPOINT ["/bin/bash", "src/config/entrypoint.sh"]
 
 # Default Node.js application process.
 CMD ["node", "src/app.js"]

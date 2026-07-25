@@ -1,0 +1,13 @@
+# Force LF line endings for these file types, regardless of OS/editor
+# settings on the machine that checks the repo out. This is what actually
+# fixes the docker-compose bind-mount problem: the mounted file on disk
+# is already correct after `git clone` / `git pull`, so the container
+# never sees a CRLF version to overwrite the image's fixed copy with.
+
+*.sh    text eol=lf
+*.js    text eol=lf
+*.json  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.env*  text eol=lf
+Dockerfile text eol=lf

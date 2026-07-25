@@ -6,7 +6,7 @@ if [ "$SCRAPER_HEADLESS" != "true" ]; then
   Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset &
   XVFB_PID=$!
 
-  # Espera o Xvfb ficar mesmo pronto antes de lançar o Chrome.
+  # Espera o Xvfb ficar mesmo pronto antes de lanÃ§ar o Chrome.
   for i in $(seq 1 10); do
     if xdpyinfo -display :99 >/dev/null 2>&1; then
       echo "[entrypoint] Xvfb pronto (pid $XVFB_PID)."
