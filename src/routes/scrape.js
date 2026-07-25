@@ -50,7 +50,6 @@ function validateScrapeRequest(body) {
 
 router.post("/", async (req, res) => {
   try {
-    ScrapeQueue.clearQueueOnStart();
 
     const {
       strategy,
