@@ -6,6 +6,7 @@ const bookPayload = require("../payloads/BookPayload");
 const { humanDelay } = require("../scrapper/humanization");
 const { BlockDetectedError } = require("../scrapper/blockDetection");
 const ResultBatchService = require("../services/ResultBatchService");
+const { withLaneContext } = require("../utils/LaneContext");
 const {
   partitionTasksIntoLanes,
   locationKey,
@@ -79,7 +80,7 @@ class StrategyRunner {
       // Task discovery uses a temporary page that is discarded once all tasks
       // have been collected.
       const discoveryPage = await browserManager.openBasePage();
-      const tasks = await strategy.getTasks(discoveryPage);
+      const tasks = await strategy.getTasks(discoveryPage, { browserManager });
       await discoveryPage.close().catch(() => {});
 
       await reportProgress(tasks.length);
@@ -144,28 +145,27 @@ class StrategyRunner {
     laneTasks,
     { strategy, browserManager, state, totalTasks, reportProgress },
   ) {
-    const context = await browserManager.newContext();
-    let page = await browserManager.openPageInContext(context);
-    let previousTask = null;
+    return withLaneContext(browserManager, async (context) => {
+      let page = await browserManager.openPageInContext(context);
+      let previousTask = null;
 
-    // Marks all remaining tasks in this lane as aborted after block detection.
-    const abortRemaining = async (fromIndex, reason) => {
-      for (const remainingTask of laneTasks.slice(fromIndex)) {
-        const entry = {
-          school: {
-            name: remainingTask.school,
-            district: remainingTask.district,
-            city: remainingTask.city,
-          },
-          error: `Batch aborted due to site blocking: ${reason}`,
-          items: [],
-        };
-        await state.batchService.add(entry, { isError: true });
-        state.completedCount++;
-      }
-    };
+      // Marks all remaining tasks in this lane as aborted after block detection.
+      const abortRemaining = async (fromIndex, reason) => {
+        for (const remainingTask of laneTasks.slice(fromIndex)) {
+          const entry = {
+            school: {
+              name: remainingTask.school,
+              district: remainingTask.district,
+              city: remainingTask.city,
+            },
+            error: `Batch aborted due to site blocking: ${reason}`,
+            items: [],
+          };
+          await state.batchService.add(entry, { isError: true });
+          state.completedCount++;
+        }
+      };
 
-    try {
       for (let i = 0; i < laneTasks.length; i++) {
         // Stop processing new tasks if another lane has already detected blocking.
         if (state.blocked) {
@@ -247,9 +247,7 @@ class StrategyRunner {
       }
 
       await page.close().catch(() => {});
-    } finally {
-      await context.close().catch(() => {});
-    }
+    });
   }
 }
 
