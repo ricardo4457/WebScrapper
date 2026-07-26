@@ -4,8 +4,7 @@ const mapNavigation = require("./Mapnavigation");
 const subjects = require("../subjects");
 const books = require("../books");
 const SEL = require("../selectors");
-
-
+const { waitForLoadingToFinish } = require("../browser");
 
 async function returnToSchoolSelection(page) {
   const backButton = page.locator(SEL.BACK_TO_SEARCH_BUTTON);
@@ -18,6 +17,7 @@ async function returnToSchoolSelection(page) {
 
 async function scrapeSchool(page, { school }) {
   await comboNavigation.selectSchool(page, school);
+  await waitForLoadingToFinish(page);
   await subjects.selectAllSubjects(page);
   await books.goToBooks(page);
   return books.extractBooks(page);
