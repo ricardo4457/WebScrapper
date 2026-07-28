@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:verbose": "jest --verbose"
   },
   "repository": {
     "type": "git",
@@ -28,6 +31,12 @@
     "patchright": "^1.61.1"
   },
   "allowScripts": {
-    "msgpackr-extract@3.0.4": true
+    "msgpackr-extract@3.0.4": true,
+    "better-sqlite3@13.0.1": true,
+    "unrs-resolver@1.12.2": true
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "jest": "^30.4.2"
   }
 }
