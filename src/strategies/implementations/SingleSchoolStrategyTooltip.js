@@ -2,12 +2,9 @@
 
 const { createScrapeTask } = require("../ScrapeTask");
 const scraper = require("../../scrapper/scraper");
+const { timed } = require("../../utils/RunTimings");
 
-/**
- * Single school strategy using the SVG map for district and city selection.
- * Temporary fallback until combo selectors are supported.
- */
-class SingleSchoolStrategyTooltip {
+class SingleSchoolStrategy {
   constructor(params = {}) {
     this.tasks = Object.freeze([createScrapeTask(params)]);
   }
@@ -17,21 +14,28 @@ class SingleSchoolStrategyTooltip {
   }
 
   /**
-   * Returns the raw scraped books.
+   * Runs the scraping flow for a single school.
+   * Returns the raw scraped books. Third param exists only so
+   * StrategyRunner can call every strategy the same way
    */
-  async execute(page, task, _opts) {
-    await scraper.selectYearAndCycle(page, {
-      yearLabel: task.year,
-      teachingType: task.teaching_cycle,
+  async execute(page, task) {
+    await timed(page, "navigation", async () => {
+      await scraper.selectYearAndCycle(page, {
+        yearLabel: task.year,
+        teachingType: task.teaching_cycle,
+      });
+      await scraper.selectDistrict(page, task.district);
+      await scraper.selectCity(page, task.city);
+      await scraper.selectSchool(page, task.school);
+      await scraper.waitForLoadingToFinish(page);
     });
-    await scraper.selectDistrictViaMap(page, task.district);
-    await scraper.selectCityViaMap(page, task.city);
-    await scraper.selectSchool(page, task.school);
-    await scraper.selectAllSubjects(page);
-    await scraper.goToBooks(page);
 
-    return scraper.extractBooks(page);
+    return timed(page, "book_extraction", async () => {
+      await scraper.selectAllSubjects(page);
+      await scraper.goToBooks(page);
+      return scraper.extractBooks(page);
+    });
   }
 }
 
-module.exports = SingleSchoolStrategyTooltip;
+module.exports = SingleSchoolStrategy;

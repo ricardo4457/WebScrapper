@@ -13,6 +13,7 @@ const {
   BlockDetectedError,
 } = require("../../scrapper/blockDetection");
 const DiscoveryRunner = require("../../runner/DiscoveryRunner");
+const { timed } = require("../../utils/RunTimings");
 
 // Maximum number of parallel browser contexts used during school discovery.
 const MAX_DISCOVERY_LANES = 4;
@@ -127,7 +128,7 @@ class FullDistrictStrategy {
         );
       }
     }
-    await scraper.waitForLoadingToFinish(page);
+    await timed(page, "navigation", () => scraper.waitForLoadingToFinish(page));
     await scraper.navigateToLocation(page, task);
     return scraper.scrapeSchool(page, task);
   }

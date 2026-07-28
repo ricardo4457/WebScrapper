@@ -12,6 +12,7 @@ const {
   assertNotBlocked,
   BlockDetectedError,
 } = require("../../scrapper/blockDetection");
+const { timed } = require("../../utils/RunTimings");
 
 /**
  * Discovers every school in a single city (city, within a district) and
@@ -91,7 +92,7 @@ class FullCityStrategy {
         );
       }
     }
-    await scraper.waitForLoadingToFinish(page);
+    await timed(page, "navigation", () => scraper.waitForLoadingToFinish(page));
     await scraper.navigateToLocation(page, task);
     return scraper.scrapeSchool(page, task);
   }

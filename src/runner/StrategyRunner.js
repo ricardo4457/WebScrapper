@@ -7,6 +7,7 @@ const { humanDelay } = require("../scrapper/humanization");
 const { BlockDetectedError } = require("../scrapper/blockDetection");
 const ResultBatchService = require("../services/ResultBatchService");
 const { withLaneContext } = require("../utils/LaneContext");
+const { RunTimings } = require("../utils/RunTimings");
 const {
   partitionTasksIntoLanes,
   locationKey,
@@ -73,6 +74,9 @@ class StrategyRunner {
       }
     };
 
+    // Measures how long each phase of the run takes
+    const timings = new RunTimings();
+
     try {
       // Start Browser
       await browserManager.launch();
@@ -80,7 +84,9 @@ class StrategyRunner {
       // Task discovery uses a temporary page that is discarded once all tasks
       // have been collected.
       const discoveryPage = await browserManager.openBasePage();
-      const tasks = await strategy.getTasks(discoveryPage, { browserManager });
+      const tasks = await timings.track("discovery", () =>
+        strategy.getTasks(discoveryPage, { browserManager }),
+      );
       await discoveryPage.close().catch(() => {});
 
       await reportProgress(tasks.length);
@@ -116,12 +122,15 @@ class StrategyRunner {
             state,
             totalTasks: tasks.length,
             reportProgress,
+            timings,
           }),
         ),
       );
 
       // Send whatever is left in the buffer .
       await batchService.flush("partial");
+
+      timings.logSummary();
 
       return {
         sentCount: batchService.getSentCount(),
@@ -143,10 +152,11 @@ class StrategyRunner {
    */
   static async _runLane(
     laneTasks,
-    { strategy, browserManager, state, totalTasks, reportProgress },
+    { strategy, browserManager, state, totalTasks, reportProgress, timings },
   ) {
     return withLaneContext(browserManager, async (context) => {
       let page = await browserManager.openPageInContext(context);
+      page.__timings = timings;
       let previousTask = null;
 
       // Marks all remaining tasks in this lane as aborted after block detection.
@@ -231,6 +241,7 @@ class StrategyRunner {
           try {
             await page.close().catch(() => {});
             page = await browserManager.openPageInContext(context);
+            page.__timings = timings;
           } catch (recreateError) {
             if (recreateError instanceof BlockDetectedError) {
               console.error(

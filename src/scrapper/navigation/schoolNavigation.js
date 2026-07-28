@@ -5,22 +5,30 @@ const subjects = require("../subjects");
 const books = require("../books");
 const SEL = require("../selectors");
 const { waitForLoadingToFinish } = require("../browser");
+const { timed } = require("../../utils/RunTimings");
 
 async function returnToSchoolSelection(page) {
-  const backButton = page.locator(SEL.BACK_TO_SEARCH_BUTTON);
-  await backButton.click();
-  await page.waitForSelector(SEL.SCHOOL_COMBO, {
-    state: "visible",
-    timeout: 10000,
+  return timed(page, "navigation", async () => {
+    const backButton = page.locator(SEL.BACK_TO_SEARCH_BUTTON);
+    await backButton.click();
+    await page.waitForSelector(SEL.SCHOOL_COMBO, {
+      state: "visible",
+      timeout: 10000,
+    });
   });
 }
 
 async function scrapeSchool(page, { school }) {
-  await comboNavigation.selectSchool(page, school);
-  await waitForLoadingToFinish(page);
-  await subjects.selectAllSubjects(page);
-  await books.goToBooks(page);
-  return books.extractBooks(page);
+  await timed(page, "navigation", async () => {
+    await comboNavigation.selectSchool(page, school);
+    await waitForLoadingToFinish(page);
+  });
+
+  return timed(page, "book_extraction", async () => {
+    await subjects.selectAllSubjects(page);
+    await books.goToBooks(page);
+    return books.extractBooks(page);
+  });
 }
 
 module.exports = {
