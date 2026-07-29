@@ -3,12 +3,16 @@ const redis = require("../config/redis");
 const ScraperJob = require("../jobs/ScraperJob");
 const scrapeCallback = require("../services/ScrapeCallback");
 
+// Must use the same queue name as src/queue/ScrapeQueue.js;
+// otherwise this worker will not consume jobs created by the /scrape route.
+const QUEUE_NAME = process.env.SCRAPE_QUEUE_NAME || "book-scraper";
+
 console.log("Job Runner is starting...");
 
 const scraperJob = new ScraperJob();
 
 const worker = new Worker(
-  "book-scraper",
+  QUEUE_NAME,
   async (job) => {
     console.log(
       `[JobRunner] Started job ${job.id} for strategy: ${job.data.strategy}`,
@@ -163,4 +167,6 @@ async function shutdown(signal) {
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
+// Exportado apenas para permitir aos testes de integração fechar a ligação
+// (worker.close()) no afterAll. Não afeta o uso normal via `node src/runner/JobRunner.js`.
 module.exports = worker;

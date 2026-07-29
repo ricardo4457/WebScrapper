@@ -3,9 +3,13 @@
 const { Queue } = require("bullmq");
 const redis = require("../config/redis");
 
+// Can be overridden in tests to use an isolated queue.
+// Production always uses the default "book-scraper" queue.
+const QUEUE_NAME = process.env.SCRAPE_QUEUE_NAME || "book-scraper";
+
 class ScrapeQueue {
   constructor() {
-    this.queue = new Queue("book-scraper", {
+    this.queue = new Queue(QUEUE_NAME, {
       connection: redis,
       defaultJobOptions: {
         attempts: 2,
