@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "jest",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "jest tests/unit",
+    "test:integration": "dotenv -e .env.test -- jest tests/integration --runInBand",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:verbose": "jest --verbose"
@@ -37,6 +39,7 @@
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
+    "dotenv-cli": "^11.0.0",
     "jest": "^30.4.2",
     "supertest": "^7.2.2"
   }
