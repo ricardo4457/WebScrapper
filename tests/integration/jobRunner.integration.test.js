@@ -117,8 +117,8 @@ describe("JobRunner (integração real: Worker + callback para o Laravel)", () =
     StrategyRunner.run.mockRejectedValue(new Error("Browser crashed"));
     const callbackReceived = waitForCallback();
 
-    // attempts: 1 força que a primeira falha seja já a tentativa final,
-    // evitando esperar pelo backoff exponencial de um retry.
+  // attempts: 1 makes the first failure the final attempt,
+  // avoiding retry backoff delays.
     await queue.add(
       "scrape-job",
       {
