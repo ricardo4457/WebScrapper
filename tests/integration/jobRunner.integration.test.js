@@ -34,9 +34,13 @@ const axios = require("axios");
 describe("JobRunner (integração real: Worker + callback para o Laravel)", () => {
   let queue;
   let jobRunnerWorker;
+  const TEST_QUEUE = (process.env.SCRAPE_QUEUE_NAME =
+    "book-scraper-route-test");
 
   beforeAll(() => {
-    queue = new Queue("book-scraper-jobrunner-test", { connection: redisConfig });
+    queue = new Queue(TEST_QUEUE, {
+      connection: redisConfig,
+    });
     // Carregar o JobRunner real arranca logo o Worker de produção sobre a
     // fila isolada acima (side effect do require - não há require.main
     // guard neste ficheiro, ao contrário de app.js).
@@ -71,7 +75,8 @@ describe("JobRunner (integração real: Worker + callback para o Laravel)", () =
       {
         strategy: "single_school",
         school: "Escola Teste",
-        callback_url: "http://host.docker.internal:8000/api/book-scraper/callback",
+        callback_url:
+          "http://host.docker.internal:8000/api/book-scraper/callback",
         run_token: "run-token-jobrunner-sucesso",
       },
       { attempts: 1 },
@@ -79,7 +84,9 @@ describe("JobRunner (integração real: Worker + callback para o Laravel)", () =
 
     const { url, payload } = await callbackReceived;
 
-    expect(url).toBe("http://host.docker.internal:8000/api/book-scraper/callback");
+    expect(url).toBe(
+      "http://host.docker.internal:8000/api/book-scraper/callback",
+    );
     expect(payload).toEqual(
       expect.objectContaining({
         status: "completed",
@@ -91,7 +98,9 @@ describe("JobRunner (integração real: Worker + callback para o Laravel)", () =
   });
 
   test("job concluído com escolas falhadas -> callback com status 'failed' e detalhe do erro", async () => {
-    const failedEntries = [{ school: { name: "Escola Falhada" }, error: "timeout", items: [] }];
+    const failedEntries = [
+      { school: { name: "Escola Falhada" }, error: "timeout", items: [] },
+    ];
     StrategyRunner.run.mockResolvedValue({ sentCount: 1, failedEntries });
     const callbackReceived = waitForCallback();
 
@@ -100,7 +109,8 @@ describe("JobRunner (integração real: Worker + callback para o Laravel)", () =
       {
         strategy: "single_school",
         school: "Escola Teste",
-        callback_url: "http://host.docker.internal:8000/api/book-scraper/callback",
+        callback_url:
+          "http://host.docker.internal:8000/api/book-scraper/callback",
         run_token: "run-token-jobrunner-parcial",
       },
       { attempts: 1 },
@@ -117,14 +127,15 @@ describe("JobRunner (integração real: Worker + callback para o Laravel)", () =
     StrategyRunner.run.mockRejectedValue(new Error("Browser crashed"));
     const callbackReceived = waitForCallback();
 
-  // attempts: 1 makes the first failure the final attempt,
-  // avoiding retry backoff delays.
+    // attempts: 1 makes the first failure the final attempt,
+    // avoiding retry backoff delays.
     await queue.add(
       "scrape-job",
       {
         strategy: "single_school",
         school: "Escola Teste",
-        callback_url: "http://host.docker.internal:8000/api/book-scraper/callback",
+        callback_url:
+          "http://host.docker.internal:8000/api/book-scraper/callback",
         run_token: "run-token-jobrunner-falha-permanente",
       },
       { attempts: 1 },
