@@ -25,9 +25,10 @@ jest.mock("../../src/runner/StrategyRunner");
 describe("Worker BullMQ (integração com Redis)", () => {
   let queue;
   let worker;
-
+  const TEST_QUEUE = (process.env.SCRAPE_QUEUE_NAME =
+    "book-scraper-route-test");
   beforeAll(() => {
-    queue = new Queue("book-scraper-test", { connection: redisConfig });
+    queue = new Queue("book-scraper-route-test", { connection: redisConfig });
   });
 
   afterEach(async () => {
@@ -52,7 +53,7 @@ describe("Worker BullMQ (integração com Redis)", () => {
     let processedJob;
 
     worker = new Worker(
-      "book-scraper-test",
+      TEST_QUEUE,
       async (job) => {
         const result = await scraperJob.perform(job);
         processedJob = job;
@@ -105,17 +106,19 @@ describe("Worker BullMQ (integração com Redis)", () => {
         { school: { name: "Escola Falhada" }, error: "timeout", items: [] },
       ],
     };
+
     StrategyRunner.run.mockResolvedValue(summary);
 
     const scraperJob = new ScraperJob();
 
-    worker = new Worker("book-scraper-test", (job) => scraperJob.perform(job), {
+    worker = new Worker(TEST_QUEUE, (job) => scraperJob.perform(job), {
       connection: redisConfig,
       concurrency: 1,
     });
 
-    const completedResult = new Promise((resolve) => {
-      worker.on("completed", (job, returnValue) => resolve(returnValue));
+    const completedPromise = new Promise((resolve, reject) => {
+      worker.once("completed", (_job, returnValue) => resolve(returnValue));
+      worker.once("failed", (_job, err) => reject(err));
     });
 
     await queue.add("scrape-job", {
@@ -126,7 +129,8 @@ describe("Worker BullMQ (integração com Redis)", () => {
       run_token: "run-token-summary-teste",
     });
 
-    const returnValue = await completedResult;
+    const returnValue = await completedPromise;
+
     expect(returnValue).toEqual(summary);
-  });
+  }, 15000);
 });
