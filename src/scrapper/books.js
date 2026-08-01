@@ -12,7 +12,7 @@ const { humanDelay } = require("./humanization");
  * one of those cases - so we race both and only throw if neither appears.
  */
 async function goToBooks(page) {
-  const continueButton = page.locator(SEL.CONTINUE_BUTTON);
+  const continueButton = await resolveContinueButton(page);
   await continueButton.scrollIntoViewIfNeeded();
 
   // Mimic human interaction with a random delay.
@@ -30,6 +30,27 @@ async function goToBooks(page) {
         "ADOPTED_BOOKS_CONTAINER/NO_BOOK_TEXT podem precisar de revalidação.",
     );
   }
+}
+
+// Sometimes there are 2 "continuar" buttons on the page (seen on the
+// fast path that reuses the page between schools in the same city).
+// Playwright throws if a selector matches more than 1 element, so we
+// pick the visible one ourselves instead of letting it crash.
+async function resolveContinueButton(page) {
+  const matches = page.locator(SEL.CONTINUE_BUTTON);
+  const count = await matches.count();
+
+  for (let i = 0; i < count; i++) {
+    const candidate = matches.nth(i);
+    if (await candidate.isVisible().catch(() => false)) {
+      return candidate;
+    }
+  }
+
+  // None reported visible (or only one match) — fall back to first rather
+  // than throwing, consistent with how courseButton() handles the same
+  // ambiguity in comboNavigation.js.
+  return matches.first();
 }
 
 /**
