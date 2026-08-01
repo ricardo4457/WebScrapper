@@ -28,6 +28,10 @@ class SingleSchoolStrategy {
       await scraper.selectCity(page, task.city);
       await scraper.selectSchool(page, task.school);
       await scraper.waitForLoadingToFinish(page);
+      if (task.course) {
+        await scraper.selectCourse(page, task.course);
+        await scraper.waitForLoadingToFinish(page);
+      }
     });
 
     return timed(page, "book_extraction", async () => {

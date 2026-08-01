@@ -57,6 +57,7 @@ class FullCityStrategy {
       createScrapeTask({
         year: this.yearSelection.year,
         teaching_cycle: this.yearSelection.teaching_cycle,
+        course: this.yearSelection.course,
         district: this.district,
         city: this.city,
         school,

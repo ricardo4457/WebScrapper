@@ -94,6 +94,7 @@ class FullDistrictStrategy {
           createScrapeTask({
             year: this.yearSelection.year,
             teaching_cycle: this.yearSelection.teaching_cycle,
+            course: this.yearSelection.course,
             district: this.district,
             city,
             school,
