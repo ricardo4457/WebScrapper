@@ -99,7 +99,125 @@ async function selectTeachingType(page, teachingType) {
   );
 }
 
-/** Wrapper to select both year and cycle/teaching type. */
+// The "Curso" dropdown works differently from the other dropdowns and
+// can be flaky about showing as "visible", so we track it via the
+// aria-expanded attribute instead of relying on visibility.
+//
+// The page sometimes shows #dropdownCursos TWICE. We pick the one that
+// already has a course selected (data-value-selected); if neither does
+// yet, we pick whichever one is actually visible.
+async function courseButton(page) {
+  const withSelection = page.locator(`${SEL.COURSE_COMBO}[data-value-selected]`);
+  if ((await withSelection.count()) > 0) {
+    return withSelection.first();
+  }
+
+  // Neither has a selection yet — don't just grab the first one blindly,
+  // it could be the hidden duplicate. Use the visible one instead.
+  const candidates = page.locator(SEL.COURSE_COMBO);
+  const count = await candidates.count();
+  for (let i = 0; i < count; i++) {
+    const candidate = candidates.nth(i);
+    if (await candidate.isVisible().catch(() => false)) {
+      return candidate;
+    }
+  }
+  return candidates.first();
+}
+
+// Gets the course options (<li>) that belong to the SAME dropdown as
+// "button" — needed because the page can duplicate the whole dropdown,
+// so we don't want options from the other, hidden copy.
+function courseOptionsFor(button) {
+  return button.locator(
+    "xpath=ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' cursos ')][1]//li[@data-value]",
+  );
+}
+
+// The default "Formação Geral" course id lives in this hidden input,
+// inside the same #cursos block.
+function courseDefaultFor(button) {
+  return button.locator(
+    "xpath=ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' cursos ')][1]//input[@id='cursoDefault']",
+  );
+}
+
+async function expandCourseDropdown(page) {
+  const button = await courseButton(page);
+
+  const isExpanded = (await button.getAttribute("aria-expanded")) === "true";
+  if (!isExpanded) {
+    await button.click();
+    await courseOptionsFor(button).first().waitFor({
+      state: "attached",
+      timeout: 8000,
+    });
+  }
+
+  // Returned so callers reuse this exact instance instead of
+  // re-resolving courseButton() and risking a different match.
+  return button;
+}
+
+async function discoverCourses(page) {
+  const isPresent = await page
+    .locator(SEL.COURSE_WRAPPER)
+    .first()
+    .isVisible()
+    .catch(() => false);
+  if (!isPresent) return [];
+
+  try {
+    const button = await expandCourseDropdown(page);
+    const rawOptions = await courseOptionsFor(button).allTextContents();
+    return rawOptions.map((t) => t.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+async function selectCourse(page, course) {
+  if (!course) return null;
+
+  const isPresent = await page
+    .locator(SEL.COURSE_WRAPPER)
+    .first()
+    .isVisible()
+    .catch(() => false);
+  if (!isPresent) return null;
+
+  const button = await expandCourseDropdown(page);
+
+  const exactMatch = new RegExp(`^\\s*${escapeRegExp(course)}\\s*$`);
+  const option = courseOptionsFor(button).filter({ hasText: exactMatch });
+
+  const count = await option.count();
+  if (count === 0) {
+    throw new Error(`selectCourse: option not found -> "${course}"`);
+  }
+
+  const target = option.first();
+  const value = await target.getAttribute("data-value");
+
+  const defaultInput = courseDefaultFor(button);
+  const defaultValue =
+    (await defaultInput.count()) > 0
+      ? await defaultInput.first().getAttribute("data-value")
+      : null;
+
+  // We click via evaluate() (runs .click() directly in the browser)
+  // instead of Playwright's normal click, because Playwright tries to
+  // scroll to the element first — and that scroll can fail if the
+  // element is inside a hidden duplicate block.
+  await target.evaluate((el) => el.click());
+
+  // Mimic human interaction with a random delay.
+  await humanDelay(200, 600);
+
+  return { value, defaultValue };
+}
+
+/** Wrapper to select year, cycle/teaching type and course. */
 async function selectYearAndCycle(
   page,
   { yearValue, yearLabel, teachingType } = {},
@@ -169,6 +287,8 @@ module.exports = {
   selectTeachingType,
   selectYearAndCycle,
   discoverTeachingTypes,
+  selectCourse,
+  discoverCourses,
   selectDistrict,
   discoverDistricts,
   selectCity,
