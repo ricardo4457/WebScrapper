@@ -24,11 +24,12 @@ mergeExclusive(modules);
  */
 async function navigateToLocation(
   page,
-  { year, teaching_cycle, district, city },
+  { year, teaching_cycle, course, district, city },
 ) {
   await comboNavigation.selectYearAndCycle(page, {
     yearLabel: year,
     teachingType: teaching_cycle,
+    course : course,
   });
   await comboNavigation.selectDistrict(page, district);
   await comboNavigation.selectCity(page, city);

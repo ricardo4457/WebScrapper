@@ -25,6 +25,7 @@ function buildImportPayload(task, books) {
       type: book.type,
       year: task.year,
       teaching_cycle: task.teaching_cycle,
+      course: task.course,
     })),
   };
 }

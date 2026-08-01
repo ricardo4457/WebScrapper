@@ -51,6 +51,7 @@ function createScrapeTask(value, fieldPrefix = '') {
   return Object.freeze({
     year: requireText(source.year, `${prefix}year`),
     teaching_cycle: optionalText(source.teaching_cycle, `${prefix}teaching_cycle`),
+    course: optionalText(source.course, `${prefix}course`),
     district: requireText(source.district, `${prefix}district`),
     city: requireText(source.city, `${prefix}city`),
     school: requireText(source.school, `${prefix}school`),
@@ -73,6 +74,7 @@ function createYearSelection(value, fieldPrefix) {
   return Object.freeze({
     year: requireText(source.year, `${fieldPrefix}.year`),
     teaching_cycle: optionalText(source.teaching_cycle, `${fieldPrefix}.teaching_cycle`),
+    course: optionalText(source.course, `${fieldPrefix}.course`),
   });
 }
 
@@ -85,6 +87,7 @@ function createTaskKey(task) {
   return JSON.stringify([
     task.year,
     task.teaching_cycle,
+    task.course,
     task.district,
     task.city,
     task.school,
@@ -115,6 +118,7 @@ function locationKey(task) {
   return JSON.stringify([
     task.year,
     task.teaching_cycle,
+    task.course,
     task.district,
     task.city,
   ]);
