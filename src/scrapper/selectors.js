@@ -22,6 +22,12 @@ module.exports = {
   TEACHING_TYPE_COMBO: "#combo-tipoEnsino",
   TEACHING_TYPE_LISTBOX: "#listbox-tipoEnsino",
 
+  // Step 1: Course (only present for some teaching cycles, e.g. 2º/3º Ciclo)
+  COURSE_WRAPPER: ".dropdown.cursos",
+  COURSE_COMBO: "#dropdownCursos",
+  COURSE_LIST: "#cursos",
+  COURSE_OPTION: "#cursos li[data-value]",
+
   // Step 2: District and city
   DISTRICT_COMBO: "#combo-distrito",
   DISTRICT_LISTBOX: "#listbox-distrito",
