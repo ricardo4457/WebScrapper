@@ -35,8 +35,7 @@ async function scrapeSchool(page, task) {
       .catch(() => false);
 
     if (hasCourseStep) {
-      const course =
-        task.course || (await comboNavigation.discoverCourses(page))[0];
+      const course = task.course;
 
       if (course) {
         courseValues = await comboNavigation.selectCourse(page, course);
