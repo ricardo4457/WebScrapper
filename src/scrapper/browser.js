@@ -11,6 +11,16 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function dismissCookieBanner(page) {
+  try {
+    const banner = page.locator(SEL.COOKIE_CONTAINER);
+    if (await banner.isVisible().catch(() => false)) {
+      await page.locator(SEL.COOKIE_REJECT).click({ timeout: 5000 });
+      await banner.waitFor({ state: "hidden", timeout: 5000 });
+    }
+  } catch {}
+}
+
 /**
  * Waits for the website loading indicator to disappear before continuing execution.
  * If the indicator does not appear, the flow continues without interruption.
@@ -20,6 +30,7 @@ async function waitForLoadingToFinish(page) {
   await loadingModal
     .waitFor({ state: "hidden", timeout: 15000 })
     .catch(() => {});
+  await dismissCookieBanner(page);
 }
 
 /**
@@ -28,6 +39,38 @@ async function waitForLoadingToFinish(page) {
  * the required application resources available.
  */
 const BLOCKED_RESOURCE_TYPES = new Set(["image", "font", "media"]);
+
+/**
+ * Returns the page to the initial search step.
+ */
+async function resetToBasePage(page) {
+  // Clear saved wizard state before reloading.
+  await page
+    .evaluate(() => {
+      try {
+        window.localStorage.clear();
+      } catch {}
+      try {
+        window.sessionStorage.clear();
+      } catch {}
+    })
+    .catch(() => {});
+
+  const response = await page.goto(SEL.BASE_URL, {
+    waitUntil: "domcontentloaded",
+    timeout: 30000,
+  });
+
+  await assertNotBlocked(page, response);
+
+  // Ensure the year selector is visible again.
+  await page.waitForSelector(SEL.YEAR_BUTTON_DATA, {
+    state: "visible",
+    timeout: 15000,
+  });
+
+  return page;
+}
 
 /**
  * Manages the browser lifecycle used by the scraper.
@@ -171,14 +214,7 @@ class BrowserManager {
    * and improves scraping performance.
    */
   async resetToBasePage(page) {
-    const response = await page.goto(SEL.BASE_URL, {
-      waitUntil: "domcontentloaded",
-      timeout: 30000,
-    });
-
-    await assertNotBlocked(page, response);
-
-    return page;
+    return resetToBasePage(page);
   }
 
   /**
@@ -205,4 +241,5 @@ module.exports = {
   BrowserManager,
   sleep,
   waitForLoadingToFinish,
+  resetToBasePage,
 };
