@@ -8,10 +8,12 @@ module.exports = {
   BASE_URL: "https://www.wook.pt/comprar-manuais-escolares",
 
   //Loading Modal
-  LOADING_MODAL: '#managed-dialog.loading',
+  LOADING_MODAL: "#managed-dialog.loading",
 
   // Cookie banner
   ACCEPT_COOKIES: 'button:has-text("ACEITAR")',
+  COOKIE_CONTAINER: "#gpe-cookies-warn",
+  COOKIE_REJECT: ".gpe-cookies-reject",
 
   // Step 1: Year
   YEAR_BUTTON_DATA: "button.ano-li",
