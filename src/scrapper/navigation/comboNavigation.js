@@ -75,10 +75,47 @@ async function selectYear(page, year) {
     throw new Error("selectYear: year is required.");
   }
 
-  const escaped = year.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const pattern = new RegExp(`^${escaped.replace(/\s+/g, "\\s*")}$`);
+  const trimmed = year.trim();
+  const numericMatch = trimmed.match(/^(\d{1,2})/);
 
-  await page.getByText(pattern).click();
+  let button = null;
+
+  if (numericMatch) {
+    /**
+     * Prefer the exact data-value selector when the year starts with a number.
+     *
+     * This avoids clicking hidden duplicate year buttons that can coexist in
+     * the DOM, because we explicitly choose the visible match instead of
+     * relying on a text lookup that may resolve to the wrong instance.
+     */
+    const candidates = page.locator(
+      SEL.YEAR_BUTTON_DATA_VALUE(numericMatch[1]),
+    );
+    const count = await candidates.count();
+
+    for (let i = 0; i < count; i++) {
+      const candidate = candidates.nth(i);
+      if (await candidate.isVisible().catch(() => false)) {
+        button = candidate;
+        break;
+      }
+    }
+  }
+
+  if (!button) {
+    /**
+     * Fallback for labels that do not start with a numeric year value.
+     *
+     * Keeps the previous text-based behavior for any special labels that do
+     * not map cleanly to a data-value selector.
+     */
+    const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(`^${escaped.replace(/\s+/g, "\\s*")}$`);
+    button = page.getByText(pattern);
+  }
+
+  await button.waitFor({ state: "visible", timeout: 15000 });
+  await button.click();
 }
 /**
  * Selects the year and teaching cycle.
@@ -107,7 +144,9 @@ async function selectTeachingType(page, teachingType) {
 // already has a course selected (data-value-selected); if neither does
 // yet, we pick whichever one is actually visible.
 async function courseButton(page) {
-  const withSelection = page.locator(`${SEL.COURSE_COMBO}[data-value-selected]`);
+  const withSelection = page.locator(
+    `${SEL.COURSE_COMBO}[data-value-selected]`,
+  );
   if ((await withSelection.count()) > 0) {
     return withSelection.first();
   }
