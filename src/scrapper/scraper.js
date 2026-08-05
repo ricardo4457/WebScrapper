@@ -6,7 +6,7 @@ const mapNavigation = require("./navigation/Mapnavigation");
 const subjects = require("./subjects");
 const books = require("./books");
 const { mergeExclusive } = require("../utils/MergeExclusive");
-const { waitForLoadingToFinish } = require("../scrapper/browser");
+const { waitForLoadingToFinish, resetToBasePage } = require("../scrapper/browser");
 
 const modules = {
   comboNavigation,
@@ -43,4 +43,5 @@ module.exports = {
   ...schoolNavigation,
   navigateToLocation,
   waitForLoadingToFinish,
+  resetToBasePage,
 };
