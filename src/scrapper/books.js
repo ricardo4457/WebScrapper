@@ -77,9 +77,14 @@ async function extractBooks(page) {
     const bookBlocks = document.querySelectorAll(sel.BOOK_BLOCK);
     const books = [];
 
+    let currentDiscipline = null;
+
     bookBlocks.forEach((block) => {
       const disciplineEl = block.querySelector(sel.BOOK_DISCIPLINE);
-      const discipline = disciplineEl ? disciplineEl.textContent.trim() : null;
+      if (disciplineEl) {
+        currentDiscipline = disciplineEl.textContent.trim();
+      }
+      const discipline = currentDiscipline;
 
       const typeEl = block.querySelector(sel.BOOK_TYPE);
       const type = typeEl ? typeEl.textContent.trim() : null;
