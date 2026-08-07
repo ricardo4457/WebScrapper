@@ -84,7 +84,7 @@ async function extractBooks(page) {
       if (disciplineEl) {
         currentDiscipline = disciplineEl.textContent.trim();
       }
-      const discipline = currentDiscipline;
+      const discipline = currentDiscipline || "Disciplina não identificada";
 
       const typeEl = block.querySelector(sel.BOOK_TYPE);
       const type = typeEl ? typeEl.textContent.trim() : null;
