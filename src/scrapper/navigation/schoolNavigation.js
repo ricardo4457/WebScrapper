@@ -47,6 +47,7 @@ async function scrapeSchool(page, task) {
   return timed(page, "book_extraction", async () => {
     await subjects.selectAllSubjects(page, courseValues);
     await books.goToBooks(page);
+    await waitForLoadingToFinish(page);
     return books.extractBooks(page);
   });
 }

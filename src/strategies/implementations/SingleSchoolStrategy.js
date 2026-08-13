@@ -37,6 +37,7 @@ class SingleSchoolStrategy {
     return timed(page, "book_extraction", async () => {
       await scraper.selectAllSubjects(page);
       await scraper.goToBooks(page);
+      await scraper.waitForLoadingToFinish(page);
       return scraper.extractBooks(page);
     });
   }
