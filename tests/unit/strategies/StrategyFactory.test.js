@@ -36,7 +36,7 @@ describe('StrategyFactory.createStrategy', () => {
   });
 
   test('apenas as estratégias suportadas atualmente estão registadas', () => {
-    const expectedStrategies = ['full_city', 'full_district', 'single_school', 'single_school_tooltip'];
+    const expectedStrategies = ['full_city', 'full_district', 'single_school', 'single_school_tooltip', "full_teaching_cycle",];
     expect([...STRATEGY_NAMES].sort()).toEqual(expectedStrategies.sort());
   });
 });
