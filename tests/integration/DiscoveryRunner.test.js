@@ -1,8 +1,8 @@
-jest.mock('../../../src/utils/LaneContext', () => ({
+jest.mock('../../src/utils/LaneContext', () => ({
   withLaneContext: jest.fn((browserManager, fn) => fn({ __fakeContext: true })),
 }));
 
-const DiscoveryRunner = require('../../../src/runner/DiscoveryRunner');
+const DiscoveryRunner = require('../../src/runner/DiscoveryRunner');
 
 function makeBrowserManager(pages) {
   let index = 0;
