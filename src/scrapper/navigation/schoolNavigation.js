@@ -25,11 +25,7 @@ async function scrapeSchool(page, task) {
     await comboNavigation.selectSchool(page, task.school);
     await waitForLoadingToFinish(page);
 
-    // Some schools show an extra "Curso" step before the subjects list.
-    // The site's UI only seems to properly refresh the disciplinas/
-    // continuar state after an actual click on an option, even if one is
-    // already shown as selected by default, so we always click something
-    // when the step is present.
+    // Some schools require a course to be selected before subjects are shown.
     const hasCourseStep = await page
       .isVisible(SEL.COURSE_WRAPPER)
       .catch(() => false);
@@ -37,10 +33,12 @@ async function scrapeSchool(page, task) {
     if (hasCourseStep) {
       const course = task.course;
 
-      if (course) {
-        courseValues = await comboNavigation.selectCourse(page, course);
-        await waitForLoadingToFinish(page);
-      }
+      // Select the requested course or the page's default course.
+      courseValues = course
+        ? await comboNavigation.selectCourse(page, course)
+        : await comboNavigation.selectDefaultCourse(page);
+
+      await waitForLoadingToFinish(page);
     }
   });
 

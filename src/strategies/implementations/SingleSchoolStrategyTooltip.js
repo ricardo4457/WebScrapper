@@ -20,6 +20,8 @@ class SingleSchoolStrategy {
    */
   async execute(page, task) {
     await timed(page, "navigation", async () => {
+      // Ensure any reappeared cookie banner is dismissed before the first click
+      await scraper.waitForLoadingToFinish(page);
       await scraper.selectYearAndCycle(page, {
         yearLabel: task.year,
         teachingType: task.teaching_cycle,
