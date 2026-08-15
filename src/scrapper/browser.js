@@ -2,6 +2,8 @@
 
 const SEL = require("./selectors");
 const { assertNotBlocked } = require("./blockDetection");
+const { debugLog } = require("./debug_tools/debug");
+
 
 /**
  * Creates a controlled delay between asynchronous operations.
