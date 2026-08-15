@@ -2,6 +2,7 @@
 
 const SEL = require("./selectors");
 const { humanDelay } = require("./humanization");
+const { captureDebugSnapshot } = require("./debug_tools/debug");
 
 /**
  * Moves from the subjects page to the adopted books page.
@@ -13,11 +14,20 @@ const { humanDelay } = require("./humanization");
  */
 async function goToBooks(page) {
   const continueButton = await resolveContinueButton(page);
-  await continueButton.scrollIntoViewIfNeeded();
 
-  // Mimic human interaction with a random delay.
-  await humanDelay(300, 700);
-  await continueButton.click();
+  try {
+    await continueButton.scrollIntoViewIfNeeded();
+
+    // Mimic human interaction with a random delay.
+    await humanDelay(300, 700);
+    await continueButton.click();
+  } catch (err) {
+    await captureDebugSnapshot(page, "continue-button-click-failed", [
+      SEL.CONTINUE_BUTTON,
+      SEL.SUBJECTS_CONTAINER,
+    ]);
+    throw err;
+  }
 
   try {
     await page.waitForSelector(
@@ -25,6 +35,10 @@ async function goToBooks(page) {
       { state: "visible", timeout: 15000 },
     );
   } catch {
+    await captureDebugSnapshot(page, "books-page-not-reached", [
+      SEL.ADOPTED_BOOKS_CONTAINER,
+      SEL.NO_BOOK_TEXT,
+    ]);
     throw new Error(
       'goToBooks: nem a lista de livros adotados nem a mensagem de "sem adoções" apareceram. ' +
         "ADOPTED_BOOKS_CONTAINER/NO_BOOK_TEXT podem precisar de revalidação.",
@@ -32,24 +46,42 @@ async function goToBooks(page) {
   }
 }
 
-// Sometimes there are 2 "continuar" buttons on the page (seen on the
-// fast path that reuses the page between schools in the same city).
-// Playwright throws if a selector matches more than 1 element, so we
-// pick the visible one ourselves instead of letting it crash.
+// Wook renders two "Continue" buttons: a decoy before the subjects and
+// the real one after them. The real button loses the "disabled" class
+// after a subject is selected, so use that state first, then DOM order,
+// and finally the visibility check as a fallback.
 async function resolveContinueButton(page) {
+  const enabled = page.locator(SEL.CONTINUE_BUTTON_ENABLED);
+  try {
+    await enabled.first().waitFor({ state: "visible", timeout: 8000 });
+    return enabled.first();
+  } catch {
+    // No subject got the button enabled
+  }
+
+  const scoped = page.locator(SEL.CONTINUE_BUTTON_AFTER_SUBJECTS);
+  if (await scoped.count()) {
+    return scoped.last();
+  }
+
   const matches = page.locator(SEL.CONTINUE_BUTTON);
   const count = await matches.count();
-
   for (let i = 0; i < count; i++) {
     const candidate = matches.nth(i);
     if (await candidate.isVisible().catch(() => false)) {
+      // Last resort: capture a snapshot before attempting the click.
+      await captureDebugSnapshot(page, "continue-button-uncertain-match", [
+        SEL.CONTINUE_BUTTON,
+        SEL.SUBJECTS_CONTAINER,
+      ]);
       return candidate;
     }
   }
 
-  // None reported visible (or only one match) — fall back to first rather
-  // than throwing, consistent with how courseButton() handles the same
-  // ambiguity in comboNavigation.js.
+  await captureDebugSnapshot(page, "continue-button-not-found", [
+    SEL.CONTINUE_BUTTON,
+    SEL.SUBJECTS_CONTAINER,
+  ]);
   return matches.first();
 }
 
