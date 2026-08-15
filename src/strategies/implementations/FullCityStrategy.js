@@ -13,6 +13,7 @@ const {
   BlockDetectedError,
 } = require("../../scrapper/blockDetection");
 const { timed } = require("../../utils/RunTimings");
+const { debugLog } = require("../../scrapper/debug_tools/debug");
 
 /**
  * Discovers every school in a single city (city, within a district) and
@@ -86,7 +87,11 @@ class FullCityStrategy {
         return await scraper.scrapeSchool(page, task);
       } catch (fastPathError) {
         if (fastPathError instanceof BlockDetectedError) throw fastPathError;
-        console.error("[DEBUG] Fast path failed with error:", fastPathError);
+        debugLog(
+          "FullCityStrategy",
+          "Fast path failed",
+          fastPathError,
+        );
         console.warn(
           `[FullCityStrategy] Same-city fast path failed for "${task.school}" ` +
             `(${fastPathError.message}). Falling back to full navigation.`,

@@ -14,6 +14,7 @@ const {
 } = require("../../scrapper/blockDetection");
 const DiscoveryRunner = require("../../runner/DiscoveryRunner");
 const { timed } = require("../../utils/RunTimings");
+const { debugLog } = require("../../scrapper/debug_tools/debug");
 
 // Maximum number of parallel browser contexts used during school discovery.
 const MAX_DISCOVERY_LANES = 4;
@@ -122,7 +123,11 @@ class FullDistrictStrategy {
       } catch (fastPathError) {
         // Fall back to full navigation if the fast path fails.
         if (fastPathError instanceof BlockDetectedError) throw fastPathError;
-        console.error("[DEBUG] Fast path failed with error:", fastPathError);
+        debugLog(
+          "FullDistrictStrategy",
+          "Fast path failed",
+          fastPathError,
+        );
         console.warn(
           `[FullDistrictStrategy] Same-city fast path failed for "${task.school}" ` +
             `(${fastPathError.message}). Falling back to full navigation.`,
