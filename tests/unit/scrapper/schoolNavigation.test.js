@@ -4,6 +4,9 @@ jest.mock("../../../src/scrapper/navigation/comboNavigation", () => ({
   selectCourse: jest
     .fn()
     .mockResolvedValue({ value: "curso-1", defaultValue: "curso-geral" }),
+  selectDefaultCourse: jest
+    .fn()
+    .mockResolvedValue({ value: "curso-geral", defaultValue: "curso-geral" }),
 }));
 jest.mock("../../../src/scrapper/subjects", () => ({
   selectAllSubjects: jest.fn().mockResolvedValue(3),
@@ -38,6 +41,10 @@ beforeEach(() => {
   jest.clearAllMocks();
   comboNavigation.selectCourse.mockResolvedValue({
     value: "curso-1",
+    defaultValue: "curso-geral",
+  });
+  comboNavigation.selectDefaultCourse.mockResolvedValue({
+    value: "curso-geral",
     defaultValue: "curso-geral",
   });
   books.extractBooks.mockResolvedValue([{ title: "Manual X" }]);
@@ -86,7 +93,7 @@ describe('schoolNavigation.scrapeSchool — com passo "Curso"', () => {
     );
   });
 
-  test("não descobre nem seleciona curso quando a tarefa não especifica um", async () => {
+  test("usa o curso por omissão da página quando a tarefa não especifica um", async () => {
     const page = makePage({ hasCourseStep: true });
     const task = {
       school: "Escola Secundária de Valongo",
@@ -97,7 +104,11 @@ describe('schoolNavigation.scrapeSchool — com passo "Curso"', () => {
 
     expect(comboNavigation.discoverCourses).not.toHaveBeenCalled();
     expect(comboNavigation.selectCourse).not.toHaveBeenCalled();
-    expect(subjects.selectAllSubjects).toHaveBeenCalledWith(page, null);
+    expect(comboNavigation.selectDefaultCourse).toHaveBeenCalledWith(page);
+    expect(subjects.selectAllSubjects).toHaveBeenCalledWith(page, {
+      value: "curso-geral",
+      defaultValue: "curso-geral",
+    });
   });
 
   test("passa os courseValues devolvidos por selectCourse a selectAllSubjects", async () => {
@@ -118,8 +129,8 @@ describe('schoolNavigation.scrapeSchool — com passo "Curso"', () => {
     });
   });
 
-  test("não chama selectCourse quando não há nenhum curso disponível para descobrir", async () => {
-    comboNavigation.discoverCourses.mockResolvedValue([]);
+  test("chama selectAllSubjects com null quando a página não tem nenhum curso disponível por omissão", async () => {
+    comboNavigation.selectDefaultCourse.mockResolvedValue(null);
     const page = makePage({ hasCourseStep: true });
 
     await scrapeSchool(page, { school: "Escola Secundária", course: null });
