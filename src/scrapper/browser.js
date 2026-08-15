@@ -14,11 +14,25 @@ function sleep(ms) {
 async function dismissCookieBanner(page) {
   try {
     const banner = page.locator(SEL.COOKIE_CONTAINER);
-    if (await banner.isVisible().catch(() => false)) {
-      await page.locator(SEL.COOKIE_REJECT).click({ timeout: 5000 });
+    // Wait briefly for the banner to appear.
+    const appeared = await banner
+      .waitFor({ state: "visible", timeout: 3000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (appeared) {
+      // Use the confirmed cookie acceptance selector.
+      await page.locator(SEL.ACCEPT_COOKIES).click({ timeout: 5000 });
       await banner.waitFor({ state: "hidden", timeout: 5000 });
     }
-  } catch {}
+  } catch (error) {
+    // Log dismissal failures instead of silently ignoring them.
+    debugLog(
+      "dismissCookieBanner",
+      "Failed to dismiss cookie banner",
+      error.message,
+    );
+  }
 }
 
 /**
@@ -62,6 +76,10 @@ async function resetToBasePage(page) {
   });
 
   await assertNotBlocked(page, response);
+
+// Clearing localStorage also resets the cookie consent flag,
+// so the banner may reappear on reload and block the year click.
+  await dismissCookieBanner(page);
 
   // Ensure the year selector is visible again.
   await page.waitForSelector(SEL.YEAR_BUTTON_DATA, {
@@ -191,8 +209,13 @@ class BrowserManager {
       // Accepts the cookie banner when it is displayed on first access.
       await page.waitForSelector(SEL.ACCEPT_COOKIES, { timeout: 5000 });
       await page.click(SEL.ACCEPT_COOKIES);
-    } catch {
-      // Cookie banner may not exist or could already be accepted.
+    } catch (error) {
+      // Log cookie dismissal failures instead of silently ignoring them.
+      debugLog(
+        "openPageInContext",
+        "Cookie banner not accepted",
+        error.message,
+      );
     }
 
     return page;
