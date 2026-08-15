@@ -244,10 +244,50 @@ async function selectCourse(page, course) {
       ? await defaultInput.first().getAttribute("data-value")
       : null;
 
-  // We click via evaluate() (runs .click() directly in the browser)
-  // instead of Playwright's normal click, because Playwright tries to
-  // scroll to the element first — and that scroll can fail if the
-  // element is inside a hidden duplicate block.
+  // Use evaluate() to click directly, avoiding Playwright scroll issues
+  // with elements inside hidden duplicate blocks.
+  await target.evaluate((el) => el.click());
+
+  // Mimic human interaction with a random delay.
+  await humanDelay(200, 600);
+
+  return { value, defaultValue };
+}
+
+// Used when a course is required but not specified.
+// A course must be selected before the subjects can be displayed.
+async function selectDefaultCourse(page) {
+  const isPresent = await page
+    .locator(SEL.COURSE_WRAPPER)
+    .first()
+    .isVisible()
+    .catch(() => false);
+  if (!isPresent) return null;
+
+  const button = await expandCourseDropdown(page);
+  const options = courseOptionsFor(button);
+
+  const count = await options.count();
+  if (count === 0) return null;
+
+  const defaultInput = courseDefaultFor(button);
+  const defaultValue =
+    (await defaultInput.count()) > 0
+      ? await defaultInput.first().getAttribute("data-value")
+      : null;
+
+  let targetIndex = 0;
+  if (defaultValue) {
+    const values = await options.evaluateAll((els) =>
+      els.map((el) => el.getAttribute("data-value")),
+    );
+    const idx = values.indexOf(defaultValue);
+    if (idx !== -1) targetIndex = idx;
+  }
+
+  const target = options.nth(targetIndex);
+  const value = await target.getAttribute("data-value");
+
   await target.evaluate((el) => el.click());
 
   // Mimic human interaction with a random delay.
@@ -327,6 +367,7 @@ module.exports = {
   selectYearAndCycle,
   discoverTeachingTypes,
   selectCourse,
+  selectDefaultCourse,
   discoverCourses,
   selectDistrict,
   discoverDistricts,
