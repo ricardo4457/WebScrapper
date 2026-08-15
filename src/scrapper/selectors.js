@@ -50,8 +50,20 @@ module.exports = {
   SUBJECTS_CONTAINER: ".disciplinas.checkbox",
   SUBJECTS_LABEL: "label",
 
-  // Step 5: Continue
-  CONTINUE_BUTTON: 'button.btnLivrosEscolares >> span:has-text("continuar")',
+// Step 5: Continue
+
+// Generic selector. Wook may render a second "Continue" button before
+// the subject checkboxes are available, so this selector is ambiguous.
+CONTINUE_BUTTON: 'button.btnLivrosEscolares',
+
+// The actual button becomes enabled after a subject is selected.
+// This is the preferred selector because it does not depend on DOM structure.
+CONTINUE_BUTTON_ENABLED: 'button.btnLivrosEscolares:not(.disabled)',
+
+// Fallback for layouts where the enabled state is unreliable.
+// Targets the button rendered after the subjects container.
+CONTINUE_BUTTON_AFTER_SUBJECTS:
+  '.disciplinas.checkbox ~ button.btnLivrosEscolares',
 
   // Step 6: Books
   ADOPTED_BOOKS_CONTAINER: ".col-xs-12.livrosAdotados",
