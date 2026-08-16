@@ -68,7 +68,7 @@ SCRAPER_DEBUG_DIR=debug
 
 ## Architecture
 
-![Context Diagram](./docs/Diagrama de Contexto.drawio.png)
+![Context Diagram](./docs/Diagrama_de_Contexto.drawio.png)
 
 - **Strategy layer** (`src/strategies`): decides *what* to search for (a single school, a city, a district, an entire teaching cycle). Has no dependency on BullMQ, Redis, Playwright, or HTTP.
 - **Orchestration layer** (`src/runner`): receives the job from Express/BullMQ, runs the strategy, and distributes the discovered tasks across parallel *lanes* (`StrategyRunner`, `DiscoveryRunner`).
