@@ -68,7 +68,7 @@ SCRAPER_DEBUG_DIR=debug
 
 ## Architecture
 
-![Context Diagram](./docs/Diagrama_de_Contexto_drawio.png)
+![Context Diagram](./docs/Diagrama de Contexto.drawio.png)
 
 - **Strategy layer** (`src/strategies`): decides *what* to search for (a single school, a city, a district, an entire teaching cycle). Has no dependency on BullMQ, Redis, Playwright, or HTTP.
 - **Orchestration layer** (`src/runner`): receives the job from Express/BullMQ, runs the strategy, and distributes the discovered tasks across parallel *lanes* (`StrategyRunner`, `DiscoveryRunner`).
@@ -208,13 +208,13 @@ Supports two browser engines, configurable via `SCRAPER_ENGINE`:
 
 Each search request joins a queue and is processed in order of arrival. While a collection is running, results already found are shown to the user before the search fully completes.
 
-![Request queue flow](./docs/Redis_BullMQ_QUEUE_drawio.png)
+![Request queue flow](./docs/Redis_BullMQ_QUEUE.drawio.png)
 
 ### Initial scraping flow
 
 Navigation sequence followed by the worker, from opening the browser to extracting a school's books: selecting year/cycle, district, school, and subjects, repeated for every school in a district when applicable.
 
-![Initial scraping flow](./docs/Scrapping_Fluxo_Inicial_drawio.png)
+![Initial scraping flow](./docs/Scrapping_Fluxo_Inicial.drawio.png)
 
 ---
 
