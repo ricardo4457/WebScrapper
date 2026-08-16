@@ -1,137 +1,223 @@
-# Sistema de Web Scraping de Livros
+# WebScrapper — Scraping Service (Node.js)
 
-Este projeto implementa uma arquitetura distribuída para um sistema de pesquisa e extração de informações sobre livros. A solução está dividida em microsserviços para garantir escalabilidade, processamento assíncrono de tarefas pesadas e uma clara separação de responsabilidades.
+Node.js microservice responsible for automatically collecting school textbook data from [wook.pt](https://www.wook.pt/comprar-manuais-escolares), using Playwright/Patchright/Camoufox. It receives scraping requests over HTTP, processes them asynchronously through a BullMQ/Redis queue, and sends the results back to the Laravel API via an authenticated HTTPS callback.
+
+This service **has no database access**. All persistence is handled by the Laravel application, which consumes the results through the callback.
+
+Related repositories:
+- API/Backend (Laravel): [WebScrapperApi](https://github.com/ricardo4457/WebScrapperApi)
+- Frontend (Vue 3): [WebScrapper-Frontend](https://github.com/ricardo4457/WebScrapper-Frontend)
 
 ---
 
-## Estrutura do Repositório
+## Requirements
 
-```text
-.
-├── backend-laravel/     # API Central e orquestrador em Laravel
-├── frontend-vue/        # Interface de utilizador em Vue.js
-└── scraping-service/    # Microsserviço de scraping em Node.js
+- Node.js 18+ (`"type": "commonjs"` — no ESM syntax)
+- Docker + Docker Compose (recommended)
+- Redis
+- Network access to the Laravel callback endpoint
+
+---
+
+## Running the project
+
+### With Docker (recommended)
+
+```bash
+docker compose up -d
+```
+
+Starts three services: `redis`, `redis-insight` (monitoring UI at `localhost:5540`) and `scraper-worker`. The Express API runs in its own container (`scraper-api`) — see `Dockerfile`/`docker-compose.yml`.
+
+### Locally
+
+```bash
+npm install
+npx patchright install --with-deps chrome
+
+node src/app.js              # HTTP API (port 3000)
+node src/runner/JobRunner.js # BullMQ worker
 ```
 
 ---
 
-## Requisitos do Sistema
-
-Para executar este projeto, certifique-se de que possui os seguintes softwares instalados no seu ambiente de desenvolvimento:
-
-*   **Docker** e **Docker Compose** (recomendado para a execução dos serviços e bases de dados)
-*   **PHP** >= 8.2 (caso execute o Laravel fora de contentor)
-*   **Composer** (gestor de dependências do PHP)
-*   **Node.js** >= 18.x e **npm** / **yarn** (para o frontend e o microsserviço Node.js)
-*   **Redis** (servidor de filas, caso não utilize o Docker Compose)
-
----
-
-## Variáveis de Ambiente
-
-Crie e configure os ficheiros `.env` em cada microsserviço conforme as necessidades do seu ambiente. Abaixo encontram-se as principais variáveis de configuração utilizadas (com foco no microsserviço de scraping):
+## Environment variables
 
 ```env
-# --- Redis / BullMQ ------------------------------------------------------------
+# Redis / BullMQ
 REDIS_HOST=localhost
 REDIS_PORT=6379
+SCRAPE_QUEUE_NAME=book-scraper
 
-# --- Servidor Express (rota /scrape) --------------------------------------------
+# Express API (/scrape route)
 PORT=3000
 
-SCRAPE_CONCURRENCY=3
-SCRAPER_ENGINE=camoufox
-# SCRAPER_HEADLESS=true
+# Browser
+SCRAPER_ENGINE=chromium        # chromium (Patchright) | camoufox
+SCRAPER_HEADLESS=true
+MOZ_DISABLE_CONTENT_SANDBOX=1  # required for Camoufox to run in Docker
 
-LARAVEL_API_URL=http://localhost:8000/api
+# Debug
+SCRAPER_DEBUG=false
+SCRAPER_DEBUG_DIR=debug
+```
+
+`callback_url` and `run_token` are **not** environment variables — they are sent by Laravel with every `POST /scrape` request and propagated through to the final callback.
+
+---
+
+## Architecture
+
+![Context Diagram](docs/Diagrama_de_Contexto_drawio.png)
+
+- **Strategy layer** (`src/strategies`): decides *what* to search for (a single school, a city, a district, an entire teaching cycle). Has no dependency on BullMQ, Redis, Playwright, or HTTP.
+- **Orchestration layer** (`src/runner`): receives the job from Express/BullMQ, runs the strategy, and distributes the discovered tasks across parallel *lanes* (`StrategyRunner`, `DiscoveryRunner`).
+- **Execution layer** (`src/scrapper`): manages the browser (`BrowserManager`), navigates the site, extracts the books.
+- **Communication layer** (`src/services`): streams results in batches (`ResultBatchService`) and sends the final callback (`ScrapeCallback`) to Laravel.
+
+---
+
+## Repository structure
+
+```
+src/
+├── app.js                     # Express entry point (HTTP API)
+├── routes/scrape.js           # POST /scrape and GET /scrape/:id
+├── queue/ScrapeQueue.js       # BullMQ queue wrapper
+├── runner/
+│   ├── JobRunner.js           # BullMQ worker (entry point of the "scraper-worker" container)
+│   ├── StrategyRunner.js      # Orchestrates a strategy's execution across parallel lanes
+│   └── DiscoveryRunner.js     # Parallel discovery (cities/schools) used by the full_* strategies
+├── strategies/
+│   ├── StrategyFactory.js     # Maps strategy (string) → class
+│   ├── ScrapeTask.js          # Task validation/normalization, lane partitioning
+│   └── implementations/       # SingleSchoolStrategy, SingleSchoolStrategyTooltip,
+│                               # FullCityStrategy, FullDistrictStrategy, FullTeachingCyleStrategy
+├── scrapper/
+│   ├── browser.js             # BrowserManager (Patchright/Camoufox)
+│   ├── selectors.js           # CSS selectors/structure of the wook.pt site
+│   ├── navigation/            # Combobox-based and map/tooltip-based navigation
+│   ├── subjects.js, books.js  # Subject selection and book extraction
+│   └── blockDetection.js      # Anti-bot/block detection
+├── services/
+│   ├── ScrapeCallback.js      # Authenticated POST to the Laravel callback
+│   └── ResultBatchService.js  # Incremental streaming of results in batches
+├── payloads/BookPayload.js    # Builds the payload expected by Laravel
+├── jobs/ScraperJob.js         # Bridge between the BullMQ Worker and StrategyRunner
+├── utils/                     # RunTimings, LaneContext, MergeExclusive, SanitizeJobData
+└── config/redis.js, entrypoint.sh
 ```
 
 ---
 
-## Arquitetura do Sistema
+## Supported strategies
 
-O sistema é composto pelas seguintes tecnologias e serviços principais:
-
-*   **Frontend (Vue.js):** Interface de utilizador responsável por iniciar pedidos de scraping, consultar estados e apresentar os resultados das pesquisas de livros.
-*   **Backend / API Principal (Laravel):** Atua como orquestrador central. Recebe os pedidos do frontend, gere a segurança, e comunica com o serviço de scraping.
-*   **Worker de Scraping (Node.js):** Um microsserviço dedicado à execução assíncrona das tarefas de extração de dados.
-*   **Mensageria e Filas (Redis + BullMQ):** Sistema escolhido para a gestão de jobs em background, devido à sua baixa latência e gestão nativa do estado das tarefas.
-
----
-
-## Segurança e Fluxo de Comunicação
-
-O sistema implementa fronteiras estritas de segurança entre os seus componentes:
-
-| Origem | Destino | Finalidade | Mecanismo de Proteção |
-| :--- | :--- | :--- | :--- |
-| **Vue.js** | **Laravel** | Iniciar scraping, consultar estado e pesquisar livros. | API key, validação de origem (CORS) e rate limiting. |
-| **Laravel** | **Node.js** | Enviar tarefas de scraping para a fila de processamento. | Comunicação interna de rede (isolada). |
-| **Node.js** | **Laravel** | Enviar resultados (callbacks) e atualizar estados dos jobs. | Token partilhado validado pelo middleware `VerifyNodeApiKey`. |
+| Strategy | Description |
+| --- | --- |
+| `single_school` | A specific school, combobox-based navigation. |
+| `single_school_tooltip` | A specific school, map/tooltip-based navigation. |
+| `full_city` | Every school in a municipality (school discovery). |
+| `full_district` | Every school in a district (city → school discovery, parallelized via `DiscoveryRunner`). |
+| `full_teaching_cycle` | Every course offered by a school (2nd/3rd cycle, secondary education). |
 
 ---
 
-## API de Scraping (Microsserviço Node.js)
+## HTTP API
 
-O serviço Node.js expõe os seguintes endpoints internos para a gestão da fila de trabalhos (acessíveis apenas pelo Laravel):
+### `POST /scrape`
+Validates `strategy`, `callback_url`, and `run_token`, and creates a job on the `book-scraper` queue.
 
-### POST /scrape
-Inicia um novo trabalho de scraping e coloca-o na fila BullMQ.
-*   **Payload:** Requer `strategy`, `callback_url` e `run_token`.
-*   **Respostas:**
-    *   `202 Accepted`: Sucesso. Retorna o ID do job e o total de tarefas criadas.
-    *   `400 Bad Request`: Erros de validação nos parâmetros enviados.
+```json
+{
+  "strategy": "single_school",
+  "year": "7.º",
+  "teaching_cycle": "Ensino Básico (3º Ciclo)",
+  "district": "Porto",
+  "city": "Valongo",
+  "school": "Colégio de Ermesinde - Escola Católica",
+  "callback_url": "https://laravel.local/api/book-scraper/callback",
+  "run_token": "..."
+}
+```
 
-### GET /scrape/:id
-Consulta o estado em tempo real de um trabalho de scraping.
-*   **Respostas:**
-    *   `200 OK`: Retorna o estado atual e a percentagem de progresso do job.
-    *   `404 Not Found`: Caso o ID do job não exista na fila Redis.
+- `202 Accepted` — `{ job_tokens, jobs_total, status }`
+- `400 Bad Request` — list of validation errors
 
----
+### `GET /scrape/:id`
+Checks the state (`state`, `progress`) of a job on the queue.
 
-## Decisões de Arquitetura: Fila de Processamento
-
-Para o processamento assíncrono das tarefas de scraping, optou-se pela stack **Redis + BullMQ** em vez do tradicional RabbitMQ (AMQP). Os principais motivos incluem:
-
-*   **Latência e Desempenho:** Acesso direto à memória com latência reduzida.
-*   **Gestão de Estado:** Visibilidade nativa e simplificada do progresso do job, ideal para reportar o estado de volta ao Laravel e Vue.js.
-*   **Complexidade Operacional:** Implementação mais limpa e de baixo consumo de recursos através de contentores Docker.
-
----
-
-## Como Executar o Projeto
-
-1. Clone este repositório:
-   ```bash
-   git clone https://github.com/seu-utilizador/seu-repositorio.git
-   ```
-2. Suba os serviços utilizando o Docker Compose:
-   ```bash
-   docker-compose up -d
-   ```
-3. Configure as variáveis de ambiente (`.env`) nos diretórios do Laravel e do Node.js, certificando-se de partilhar o token de segurança entre eles.
-4. Execute as migrações do Laravel:
-   ```bash
-   php artisan migrate
-   ```
+- `200 OK`
+- `404 Not Found`
 
 ---
 
-## Testes
+## Callback contract (worker → Laravel)
 
-Para garantir a integridade do código e o correto funcionamento dos microsserviços, pode executar a bateria de testes disponível em cada módulo:
+Sent by `ScrapeCallback`/`ResultBatchService` to `callback_url`, in batches during execution (`status: "partial"`) and as a final callback (`final: true`, `status: "completed" | "failed"`):
 
-*   **Backend (Laravel):**
-    ```bash
-    php artisan test
-    ```
-*   **Microsserviço de Scraping (Node.js):**
-    ```bash
-    npm test
-    ```
+```json
+{
+  "run_token": "...",
+  "job_token": "...",
+  "attempt": 0,
+  "status": "partial",
+  "books": [
+    {
+      "school": { "name": "...", "district": "...", "city": "..." },
+      "items": [
+        {
+          "title": "...", "publisher": "...", "authors": ["..."],
+          "cover_path": "...", "price": 12.5,
+          "discipline": "...", "type": "...",
+          "year": "7.º", "teaching_cycle": "...", "course": null
+        }
+      ]
+    }
+  ]
+}
+```
 
+`year` and `teaching_cycle` live inside each item of `items[]`, never at the `books[]` level.
 
-## Direitos de Autor e Licença
+---
 
-Este projeto está licenciado sob a **MIT License**. Consulte o ficheiro [LICENSE](LICENSE) para mais detalhes.
+## Tests
+
+```bash
+npm run test
+```
+
+Jest suite with Playwright/BullMQ mocks — covers `ScrapeTask`, `BookPayload`, `StrategyFactory`, `blockDetection`, `DiscoveryRunner`, `StrategyRunner`, and each strategy individually.
+
+---
+
+## Anti-detection
+
+Supports two browser engines, configurable via `SCRAPER_ENGINE`:
+
+- **Patchright** (Chromium) — avoids the CDP `Runtime.enable` command, the main detection vector used by vanilla Playwright.
+- **Camoufox** (modified Firefox) — closer fingerprint to a real browser; higher resource usage, used as a fallback when Patchright gets blocked.
+
+`src/scrapper/blockDetection.js` detects blocks by HTTP status code (403/429/503) and by text signals on the page (Cloudflare, "access denied", etc.), aborting the current lane without affecting the others.
+
+---
+
+## Flow diagrams
+
+### Request queue
+
+Each search request joins a queue and is processed in order of arrival. While a collection is running, results already found are shown to the user before the search fully completes.
+
+![Request queue flow](docs/Redis_BullMQ_QUEUE_drawio.png)
+
+### Initial scraping flow
+
+Navigation sequence followed by the worker, from opening the browser to extracting a school's books: selecting year/cycle, district, school, and subjects, repeated for every school in a district when applicable.
+
+![Initial scraping flow](docs/Scrapping_Fluxo_Inicial_drawio.png)
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
